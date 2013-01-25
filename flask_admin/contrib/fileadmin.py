@@ -374,6 +374,9 @@ class FileAdmin(BaseView, ActionsMixin):
 
             items.append((f, op.join(path, f), op.isdir(fp), op.getsize(fp)))
 
+        # Sort by name
+        items.sort(key=itemgetter(0))
+
         # Sort by type
         items.sort(key=itemgetter(2), reverse=True)
 
