@@ -5,8 +5,7 @@ from sqlalchemy.orm import subqueryload
 from sqlalchemy.sql.expression import desc
 from sqlalchemy import or_, Column
 
-from flask import flash
-
+from flask import flash, request
 from flask.ext.admin.tools import ObsoleteAttr
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
@@ -520,6 +519,17 @@ class ModelView(BaseModelView):
 
         return form_class
 
+    def scaffold_multiple_update_form(self):
+        """
+            Create form from the model.
+        """
+        converter = self.model_form_converter(self.session, self, chosen_enabled=False)
+        form_class = form.get_form(self.model, converter,
+                                   only=self.form_multiple_update_columns,
+                                   field_args=self.form_args)
+        return form_class
+
+
     def scaffold_inline_form_models(self, form_class):
         """
             Contribute inline models to the form
@@ -788,3 +798,29 @@ class ModelView(BaseModelView):
                            count=count))
         except Exception, ex:
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)), 'error')
+
+    @action('multiple_update', lazy_gettext(u'Multiple Update'))
+    def action_multiple_update(self, ids):
+        try:
+            if ids:
+                model_pk = getattr(self.model, self._primary_key)
+                data = {}
+                q = self.get_query().filter(model_pk.in_(ids))
+                for column, value in request.form.items():
+                    if value == '__None':
+                        value = None
+                    if column in self.form_multiple_update_columns:
+                        attr = getattr(self.model, column)
+                        if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
+                            column += '_id'
+                        data[column] = value
+                if data:
+                    count = q.update(data, synchronize_session=False)
+                    self.session.commit()
+                    flash(ngettext(u'Model was successfully updated.',
+                                   '%(count)s models were successfully updated.',
+                                   count,
+                                   count=count))
+        except Exception, exc:
+            flash(gettext(u'Failed to delete models. %(error)s', error=exc.message.decode('utf8')), 'error')
+

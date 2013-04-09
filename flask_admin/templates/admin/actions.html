@@ -5,7 +5,13 @@
     <ul class="dropdown-menu">
         {% for p in actions %}
         <li>
-            <a href="#" onclick="return modelActions.execute('{{ p[0] }}');">{{ _gettext(p[1]) }}</a>
+            {% if p[0] == 'multiple_update' %}
+                <a class="overlay-trigger" rel="#{{ p[0] }}" href="#">{{ _gettext(p[1]) }}</a>
+            {% else %}
+                <a id="{{ p[0] }}" href="#" onclick="return modelActions.execute('{{ p[0] }}');">
+                    {{ _gettext(p[1]) }}
+                </a>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -14,6 +20,7 @@
 {% macro form(actions, url) %}
     {% if actions %}
     <form id="action_form" action="{{ url }}" method="POST" style="display: none">
+        <input type="hidden" name="url" value="{{ request.url }}" />
         <input type="hidden" id="action" name="action" />
     </form>
     {% endif %}

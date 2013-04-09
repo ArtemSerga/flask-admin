@@ -113,7 +113,9 @@ class ActionsMixin(object):
             if response is not None:
                 return response
 
-        if not return_view:
+        if 'url' in request.form:
+            url = request.form['url']
+        elif not return_view:
             url = url_for('.' + self._default_view)
         else:
             url = url_for('.' + return_view)

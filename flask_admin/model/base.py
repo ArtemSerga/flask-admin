@@ -263,6 +263,11 @@ class BaseModelView(BaseView, ActionsMixin):
                 form_excluded_columns = ('last_name', 'email')
     """
 
+    """
+        Collection of the model field names for the form for updating multiple rows at once.
+    """
+    form_multiple_update_columns = None
+
     form_overrides = None
     """
         Dictionary of form column overrides.
@@ -862,7 +867,6 @@ class BaseModelView(BaseView, ActionsMixin):
 
         # Actions
         actions, actions_confirmation = self.get_actions_list()
-
         return self.render(self.list_template,
                                data=data,
                                # List
@@ -903,7 +907,17 @@ class BaseModelView(BaseView, ActionsMixin):
 
                                # Actions
                                actions=actions,
-                               actions_confirmation=actions_confirmation
+                               actions_confirmation=actions_confirmation,
+
+                               # Bulk update form
+                               multiple_update_form=self.scaffold_multiple_update_form()() if self.form_multiple_update_columns else None,
+                               multiple_update_action=self._get_url('.action_view',
+                                                                page,
+                                                                sort_idx,
+                                                                sort_desc,
+                                                                search,
+                                                                filters),
+
                                )
 
     @expose('/new/', methods=('GET', 'POST'))
