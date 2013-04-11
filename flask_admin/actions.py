@@ -83,6 +83,8 @@ class ActionsMixin(object):
 
         for act in self._actions:
             name, text = act
+            if name == 'multiple_update' and not self.form_multiple_update_columns:
+                continue
 
             if self.is_action_allowed(name):
                 text = unicode(text)
