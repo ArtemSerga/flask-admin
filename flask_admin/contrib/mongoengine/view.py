@@ -4,6 +4,7 @@ from flask import flash
 
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
+from flask.ext.admin.model.helpers import get_default_order
 
 import mongoengine
 from bson.objectid import ObjectId
@@ -240,6 +241,13 @@ class ModelView(BaseModelView):
 
         return form_class
 
+    def get_query(self):
+        """
+        Returns the QuerySet for this view.  By default, it returns all the
+        objects for the current model.
+        """
+        return self.model.objects
+
     def get_list(self, page, sort_column, sort_desc, search, filters,
                  execute=True):
         """
@@ -258,7 +266,7 @@ class ModelView(BaseModelView):
             :param execute:
                 Run query immediately or not
         """
-        query = self.model.objects
+        query = self.get_query()
 
         # Filters
         if self._filters:
@@ -293,6 +301,11 @@ class ModelView(BaseModelView):
         # Sorting
         if sort_column:
             query = query.order_by('%s%s' % ('-' if sort_desc else '', sort_column))
+        else:
+            order = get_default_order(self)
+
+            if order:
+                query = query.order_by('%s%s' % ('-' if order[1] else '', order[0]))
 
         # Pagination
         if page is not None:
@@ -312,7 +325,7 @@ class ModelView(BaseModelView):
             :param id:
                 Model ID
         """
-        return self.model.objects.with_id(id)
+        return self.get_query().filter(pk=id).first()
 
     def create_model(self, form):
         """
@@ -326,12 +339,15 @@ class ModelView(BaseModelView):
             form.populate_obj(model)
             self.on_model_change(form, model)
             model.save()
-            return True
         except Exception, ex:
             flash(gettext('Failed to create model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to create model')
             return False
+        else:
+            self.after_model_change(form, model, True)
+
+        return True
 
     def update_model(self, form, model):
         """
@@ -346,12 +362,15 @@ class ModelView(BaseModelView):
             form.populate_obj(model)
             self.on_model_change(form, model)
             model.save()
-            return True
         except Exception, ex:
             flash(gettext('Failed to update model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to update model')
             return False
+        else:
+            self.after_model_change(form, model, False)
+
+        return True
 
     def delete_model(self, model):
         """
@@ -366,7 +385,7 @@ class ModelView(BaseModelView):
             return True
         except Exception, ex:
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to delete model')
             return False
 
@@ -386,9 +405,8 @@ class ModelView(BaseModelView):
             count = 0
 
             all_ids = [ObjectId(pk) for pk in ids]
-            for obj in self.model.objects.in_bulk(all_ids).values():
-                obj.delete()
-                count += 1
+            for obj in self.get_query().in_bulk(all_ids).values():
+                count += self.delete_model(obj)
 
             flash(ngettext('Model was successfully deleted.',
                            '%(count)s models were successfully deleted.',
@@ -396,4 +414,4 @@ class ModelView(BaseModelView):
                            count=count))
         except Exception, ex:
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)),
-                'error')
+                  'error')

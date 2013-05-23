@@ -34,7 +34,13 @@ def expose_plugview(url='/'):
         .. versionadded:: 1.0.4
     """
     def wrap(v):
-        return expose(url, v.methods)(v.as_view(v.__name__))
+        handler = expose(url, v.methods)
+
+        if hasattr(v, 'as_view'):
+            return handler(v.as_view(v.__name__))
+        else:
+            return handler(v)
+
     return wrap
 
 
@@ -174,7 +180,7 @@ class BaseView(object):
         # If endpoint name is not provided, get it from the class name
         if self.endpoint is None:
             self.endpoint = self.__class__.__name__.lower()
-            
+
         # If the static_url_path is not provided, use the admin's
         if not self.static_url_path:
             self.static_url_path = admin.static_url_path
@@ -227,6 +233,7 @@ class BaseView(object):
         """
         # Store self as admin_view
         kwargs['admin_view'] = self
+        kwargs['admin_base_template'] = self.admin.base_template
 
         # Provide i18n support even if flask-babel is not installed
         # or enabled.
@@ -247,6 +254,17 @@ class BaseView(object):
                 String to prettify
         """
         return sub(r'(?<=.)([A-Z])', r' \1', name)
+
+    def is_visible(self):
+        """
+            Override this method if you want dynamically hide or show administrative views
+            from Flask-Admin menu structure
+
+            By default, item is visible in menu.
+
+            Please note that item should be both visible and accessible to be displayed in menu.
+        """
+        return True
 
     def is_accessible(self):
         """
@@ -347,6 +365,12 @@ class MenuItem(object):
 
         return view.url in self._children_urls
 
+    def is_visible(self):
+        if self._view is None:
+            return False
+
+        return self._view.is_visible()
+
     def is_accessible(self):
         if self._view is None:
             return False
@@ -357,12 +381,12 @@ class MenuItem(object):
         return self._view is None
 
     def get_children(self):
-        return [c for c in self._children if c.is_accessible()]
+        return [c for c in self._children if c.is_accessible() and c.is_visible()]
 
 
 class MenuLink(object):
     """
-        Menu additional links hierarchy.
+        Additional menu links.
     """
     def __init__(self, name, url=None, endpoint=None):
         self.name = name
@@ -371,6 +395,9 @@ class MenuLink(object):
 
     def get_url(self):
         return self.url or url_for(self.endpoint)
+
+    def is_visible(self):
+        return True
 
     def is_accessible(self):
         return True
@@ -385,7 +412,8 @@ class Admin(object):
                  index_view=None,
                  translations_path=None,
                  endpoint=None,
-                 static_url_path=None):
+                 static_url_path=None,
+                 base_template=None):
         """
             Constructor.
 
@@ -407,7 +435,9 @@ class Admin(object):
                 a single Flask application, you have to set a unique endpoint name for each instance.
             :param static_url_path:
                 Static URL Path. If provided, this specifies the default path to the static url directory for
-                all its views. Can be overriden in view configuration.
+                all its views. Can be overridden in view configuration.
+            :param base_template:
+                Override base HTML template for all static views. Defaults to `admin/base.html`.
         """
         self.app = app
 
@@ -427,6 +457,7 @@ class Admin(object):
         self.url = url or self.index_view.url
         self.static_url_path = static_url_path
         self.subdomain = subdomain
+        self.base_template = base_template or 'admin/base.html'
 
         # Add predefined index view
         self.add_view(self.index_view)

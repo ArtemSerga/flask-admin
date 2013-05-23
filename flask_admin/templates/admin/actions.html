@@ -8,7 +8,7 @@
             {% if p[0] == 'multiple_update' %}
                 <a class="overlay-trigger" rel="#{{ p[0] }}" href="#">{{ _gettext(p[1]) }}</a>
             {% else %}
-                <a id="{{ p[0] }}" href="#" onclick="return modelActions.execute('{{ p[0] }}');">
+                <a id="{{ p[0] }}" href="javascript:void(0)" onclick="return modelActions.execute('{{ p[0] }}');">
                     {{ _gettext(p[1]) }}
                 </a>
             {% endif %}

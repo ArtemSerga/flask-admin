@@ -1,13 +1,15 @@
 import logging
 
 import pymongo
-from bson.objectid import ObjectId
+from bson import ObjectId
+from bson.errors import InvalidId
 
 from flask import flash
 from jinja2 import contextfunction
 
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
+from flask.ext.admin.model.helpers import get_default_order
 from flask.ext.admin.actions import action
 
 from .filters import BasePyMongoFilter
@@ -121,29 +123,11 @@ class ModelView(BaseModelView):
     def scaffold_form(self):
         raise NotImplemented()
 
-    @contextfunction
-    def get_list_value(self, context, model, name):
+    def _get_field_value(self, model, name):
         """
-            Returns value to be displayed in list view
-
-            :param context:
-                :py:class:`jinja2.runtime.Context`
-            :param model:
-                Model instance
-            :param name:
-                Field name
+            Get unformatted field value from the model
         """
-        column_fmt = self.column_formatters.get(name)
-        if column_fmt is not None:
-            return column_fmt(context, model, name)
-
-        value = model.get(name)
-
-        type_fmt = self.column_type_formatters.get(type(value))
-        if type_fmt is not None:
-            value = type_fmt(value)
-
-        return value
+        return model.get(name)
 
     def get_list(self, page, sort_column, sort_desc, search, filters,
                  execute=True):
@@ -177,7 +161,7 @@ class ModelView(BaseModelView):
                 if len(data) == 1:
                     query = data[0]
                 else:
-                    query['$AND'] = data
+                    query['$and'] = data
 
         # Search
         if self._search_supported and search:
@@ -222,6 +206,11 @@ class ModelView(BaseModelView):
 
         if sort_column:
             sort_by = [(sort_column, pymongo.DESCENDING if sort_desc else pymongo.ASCENDING)]
+        else:
+            order = get_default_order(self)
+
+            if order:
+                sort_by = [(order[0], pymongo.DESCENDING if order[1] else pymongo.ASCENDING)]
 
         # Pagination
         skip = None
@@ -236,6 +225,12 @@ class ModelView(BaseModelView):
 
         return count, results
 
+    def _get_valid_id(self, id):
+        try:
+            return ObjectId(id)
+        except InvalidId:
+            return id
+
     def get_one(self, id):
         """
             Return single model instance by ID
@@ -243,8 +238,7 @@ class ModelView(BaseModelView):
             :param id:
                 Model ID
         """
-        # TODO: Validate if it is valid ID
-        return self.coll.find_one({'_id': ObjectId(id)})
+        return self.coll.find_one({'_id': self._get_valid_id(id)})
 
     def edit_form(self, obj):
         """
@@ -263,12 +257,15 @@ class ModelView(BaseModelView):
             model = form.data
             self.on_model_change(form, model)
             self.coll.insert(model)
-            return True
         except Exception, ex:
             flash(gettext('Failed to create model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to create model')
             return False
+        else:
+            self.after_model_change(form, model, True)
+
+        return True
 
     def update_model(self, form, model):
         """
@@ -285,12 +282,15 @@ class ModelView(BaseModelView):
 
             pk = self.get_pk_value(model)
             self.coll.update({'_id': pk}, model)
-            return True
         except Exception, ex:
             flash(gettext('Failed to update model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to update model')
             return False
+        else:
+            self.after_model_change(form, model, False)
+
+        return True
 
     def delete_model(self, model):
         """
@@ -310,7 +310,7 @@ class ModelView(BaseModelView):
             return True
         except Exception, ex:
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)),
-                'error')
+                  'error')
             logging.exception('Failed to delete model')
             return False
 
@@ -331,7 +331,7 @@ class ModelView(BaseModelView):
 
             # TODO: Optimize me
             for pk in ids:
-                self.coll.remove({'_id': ObjectId(pk)})
+                self.coll.remove({'_id': self._get_valid_id(pk)})
                 count += 1
 
             flash(ngettext('Model was successfully deleted.',

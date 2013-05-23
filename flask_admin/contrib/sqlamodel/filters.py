@@ -1,5 +1,6 @@
-from flask.ext.admin.babel import gettext
+import warnings
 
+from flask.ext.admin.babel import gettext
 from flask.ext.admin.model import filters
 from flask.ext.admin.contrib.sqlamodel import tools
 
@@ -91,11 +92,12 @@ class FilterConverter(filters.BaseFilterConverter):
     strings = (FilterEqual, FilterNotEqual, FilterLike, FilterNotLike)
     numeric = (FilterEqual, FilterNotEqual, FilterGreater, FilterSmaller)
     bool = (BooleanEqualFilter, BooleanNotEqualFilter)
-    emun = (FilterEqual, FilterNotEqual)
+    enum = (FilterEqual, FilterNotEqual)
 
     def convert(self, type_name, column, name, **kwargs):
         if type_name in self.converters:
             return self.converters[type_name](column, name, **kwargs)
+
         return None
 
     @filters.convert('String', 'Unicode', 'Text', 'UnicodeText')
@@ -119,5 +121,10 @@ class FilterConverter(filters.BaseFilterConverter):
         return [f(column, name, data_type='datetimepicker', **kwargs) for f in self.numeric]
 
     @filters.convert('Enum', 'ENUM')
-    def conv_enum(self, column, name, options, **kwargs):
-        return [f(column, name, options, **kwargs) for f in self.emun]
+    def conv_enum(self, column, name, options=None, **kwargs):
+        if not options:
+            options = [
+                (v, v)
+                for v in column.type.enums
+            ]
+        return [f(column, name, options, **kwargs) for f in self.enum]

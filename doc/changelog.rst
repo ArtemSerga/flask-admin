@@ -1,6 +1,39 @@
 Changelog
 =========
 
+1.0.6
+-----
+
+* Model views now support default sorting order
+* Model type/column formatters now accept additional `view` parameter
+* `is_visible` for administrative views
+* Model views have `after_model_change` method that can be overridden
+* In model views, `get_query` was split into `get_count_query` and `get_query`
+* Bootstrap 2.3.1
+* Bulk deletes go through `delete_model`
+* Flask-Admin no longer uses floating navigation bar
+* Translations: French, Persian (Farsi), Chinese (Simplified/Traditional), Chech
+* Bug fixes
+
+1.0.5
+-----
+
+* SQLAlchemy 0.8 support
+* Choices and PostgreSQL Enum field type support
+* Flask-BabelEx will be used to localize administrative interface
+* Simple text file editor
+* File admin has additional hooks: rename, edit, upload, etc
+* Simple text file editor
+* External links in menu
+* Column descriptions
+* Possibility to override master template
+* Reworked templates. New 'layout' sample with completely different administrative UI
+* Ability to customize wtforms widget rendering through `form_widget_args` property
+* German translation (WIP)
+* Updated documentation
+* Lots of bug fixes
+
+
 1.0.4
 -----
 
@@ -42,28 +75,3 @@ SQLAlchemy backend:
 * Synonym properties support
 * Backend will ignore protected fields (name starting with underscore) from now on
 * Support for various PostgreSQL fields
-
-1.0.2
------
-
-* Peewee model backend
-* Inline form administration interface for models a-la Django
-* Mass actions - methods that work with more than one item (for example - mass delete for models or files)
-* SQLAlchemy form scaffolding is now independent from the wtforms.ext.sqlalchemy helpers
-* Added ability to mount administrative interface as a top-level folder
-* Administrative interface can now be mounted as a subdomain
-* Can now use FileField in model admin
-* Revamped model templates, much more customizable now
-* Model list view column formatting callbacks
-* Lots of bugfixes
-
-1.0.1
------
-
-* Fixed setup manifest
-
-
-1.0.0
------
-
-* Initial release

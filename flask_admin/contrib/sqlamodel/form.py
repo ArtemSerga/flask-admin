@@ -1,8 +1,8 @@
 from wtforms import fields, validators
 from sqlalchemy import Boolean, Column
-from wtfpeewee.fields import SelectChoicesField
 
 from flask.ext.admin import form
+from flask.ext.admin.form import Select2Field
 from flask.ext.admin.tools import get_property
 from flask.ext.admin.model.form import (converts, ModelConverterBase,
                                         InlineFormAdmin, InlineModelConverterBase)
@@ -21,10 +21,9 @@ class AdminModelConverter(ModelConverterBase):
     """
         SQLAlchemy model to form converter
     """
-    chosen_enabled = True
-    def __init__(self, session, view, chosen_enabled=chosen_enabled):
+    def __init__(self, session, view):
         super(AdminModelConverter, self).__init__()
-        self.chosen_enabled = chosen_enabled
+
         self.session = session
         self.view = view
 
@@ -80,7 +79,7 @@ class AdminModelConverter(ModelConverterBase):
             if local_column.nullable:
                 kwargs['validators'].append(validators.Optional())
             elif prop.direction.name != 'MANYTOMANY':
-                kwargs['validators'].append(validators.Required())
+                kwargs['validators'].append(validators.InputRequired())
 
             # Override field type if necessary
             override = self._get_field_override(prop.key)
@@ -89,17 +88,13 @@ class AdminModelConverter(ModelConverterBase):
 
             # Contribute model-related parameters
             if 'allow_blank' not in kwargs:
-                kwargs['allow_blank'] = local_column.nullable,
+                kwargs['allow_blank'] = local_column.nullable
             if 'query_factory' not in kwargs:
                 kwargs['query_factory'] = lambda: self.session.query(remote_model)
 
             if prop.direction.name == 'MANYTOONE':
-                if self.chosen_enabled:
-                    return QuerySelectField(widget=form.Select2Widget(),
-                                            **kwargs)
-                else:
-                    return QuerySelectField(**kwargs)
-
+                return QuerySelectField(widget=form.Select2Widget(),
+                                        **kwargs)
             elif prop.direction.name == 'ONETOMANY':
                 # Skip backrefs
                 if not local_column.foreign_keys and getattr(self.view, 'column_hide_backrefs', False):
@@ -159,7 +154,7 @@ class AdminModelConverter(ModelConverterBase):
                                                        column))
 
                 if not column.nullable and not isinstance(column.type, Boolean):
-                    kwargs['validators'].append(validators.Required())
+                    kwargs['validators'].append(validators.InputRequired())
 
                 # Apply label and description if it isn't inline form field
                 if self.view.model == mapper.class_:
@@ -175,7 +170,7 @@ class AdminModelConverter(ModelConverterBase):
 
                     if value is not None:
                         if getattr(default, 'is_callable', False):
-                            value = value(None)
+                            value = lambda: default.arg(None)
                         else:
                             if not getattr(default, 'is_scalar', True):
                                 value = None
@@ -196,7 +191,7 @@ class AdminModelConverter(ModelConverterBase):
                 if mapper.class_ == self.view.model and self.view.form_choices:
                     choices = self.view.form_choices.get(column.key)
                     if choices:
-                        return SelectChoicesField(
+                        return Select2Field(
                             choices=choices,
                             allow_blank=column.nullable,
                             **kwargs
@@ -448,7 +443,7 @@ class InlineModelConverter(InlineModelConverterBase):
 
         for prop in target_mapper.iterate_properties:
             if hasattr(prop, 'direction') and prop.direction.name == 'MANYTOONE':
-                if prop.mapper.class_ == model:
+                if issubclass(model, prop.mapper.class_):
                     reverse_prop = prop
                     break
         else:

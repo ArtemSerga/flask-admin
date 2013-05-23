@@ -1,3 +1,5 @@
+import warnings
+
 from flask import request, url_for, redirect, flash
 
 from jinja2 import contextfunction
@@ -79,14 +81,15 @@ class BaseModelView(BaseView, ActionsMixin):
         two, you can do something like this::
 
             class MyModelView(BaseModelView):
-                column_formatters = dict(price=lambda c, m, p: m.price*2)
+                column_formatters = dict(price=lambda v, c, m, p: m.price*2)
 
         The Callback function has the prototype::
 
-            def formatter(context, model, name):
-                # context is instance of jinja2.runtime.Context
-                # model is model instance
-                # name is property name
+            def formatter(view, context, model, name):
+                # `view` is current administrative view
+                # `context` is instance of jinja2.runtime.Context
+                # `model` is model instance
+                # `name` is property name
                 pass
     """
 
@@ -117,6 +120,13 @@ class BaseModelView(BaseView, ActionsMixin):
                 column_type_formatters = MY_DEFAULT_FORMATTERS
 
         Type formatters have lower priority than list column formatters.
+
+        The callback function has following prototype::
+
+            def type_formatter(view, value):
+                # `view` is current administrative view
+                # `value` value to format
+                pass
     """
 
     column_labels = ObsoleteAttr('column_labels', 'rename_columns', None)
@@ -165,6 +175,22 @@ class BaseModelView(BaseView, ActionsMixin):
 
             class MyModelView(BaseModelView):
                 column_sortable_list = ('name', ('user', User.username))
+    """
+
+    column_default_sort = None
+    """
+        Default sort column if no sorting is applied.
+
+        Example::
+
+            class MyModelView(BaseModelView):
+                column_default_sort = 'user'
+
+        You can use tuple to control ascending descending order. In following example, items
+        will be sorted in descending order::
+
+            class MyModelView(BaseModelView):
+                column_default_sort = ('user', True)
     """
 
     column_searchable_list = ObsoleteAttr('column_searchable_list',
@@ -278,6 +304,22 @@ class BaseModelView(BaseView, ActionsMixin):
                 form_overrides = dict(name=wtf.FileField)
     """
 
+    form_widget_args = None
+    """
+        Dictionary of form widget rendering arguments.
+        Use this to customize how widget is rendered without using custom template.
+
+        Example::
+
+            class MyModelView(BaseModelView):
+                form_widget_args = {
+                    'description': {
+                        'rows': 10,
+                        'style': 'color: black'
+                    }
+                }
+    """
+
     # Actions
     action_disallowed_list = ObsoleteAttr('action_disallowed_list',
                                           'disallowed_actions',
@@ -342,9 +384,16 @@ class BaseModelView(BaseView, ActionsMixin):
         self._list_columns = self.get_list_columns()
         self._sortable_columns = self.get_sortable_columns()
 
+        # Labels
+        if self.column_labels is None:
+            self.column_labels = {}
+
         # Forms
         self._create_form_class = self.get_create_form()
         self._edit_form_class = self.get_edit_form()
+
+        if self.form_widget_args is None:
+            self.form_widget_args = {}
 
         # Search
         self._search_supported = self.init_search()
@@ -596,7 +645,7 @@ class BaseModelView(BaseView, ActionsMixin):
     def get_list(self, page, sort_field, sort_desc, search, filters):
         """
             Return a paginated and sorted list of models from the data source.
-            
+
             Must be implemented in the child class.
 
             :param page:
@@ -624,7 +673,7 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         raise NotImplemented('Please implement get_one method')
 
-    # Model handlers
+    # Model event handlers
     def on_model_change(self, form, model):
         """
             Perform some actions after a model is created or updated.
@@ -632,7 +681,30 @@ class BaseModelView(BaseView, ActionsMixin):
             Called from create_model and update_model in the same transaction
             (if it has any meaning for a store backend).
 
-            By default do nothing.
+            By default does nothing.
+
+            :param form:
+                Form used to create/update model
+            :param model:
+                Model that will be created/updated
+        """
+        pass
+
+    def after_model_change(self, form, model, is_created):
+        """
+            Perform some actions after a model was created or updated and
+            committed to the database.
+
+            Called from create_model after successful database commit.
+
+            By default does nothing.
+
+            :param form:
+                Form used to create/update model
+            :param model:
+                Model that was created/updated
+            :param is_created:
+                True if model was created, False if model was updated
         """
         pass
 
@@ -784,6 +856,12 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         return name not in self.action_disallowed_list
 
+    def _get_field_value(self, model, name):
+        """
+            Get unformatted field value from the model
+        """
+        return rec_getattr(model, name)
+
     @contextfunction
     def get_list_value(self, context, model, name):
         """
@@ -798,9 +876,21 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         column_fmt = self.column_formatters.get(name)
         if column_fmt is not None:
-            return column_fmt(context, model, name)
+            try:
+                return column_fmt(self, context, model, name)
+            except TypeError:
+                warnings.warn('Column formatter prototype was changed to accept view as first input parameter.\n' +
+                              'Please update %s %s formatter to accept 4 parameters.' % (self.name, name),
+                              stacklevel=2)
+                self.column_formatters[name] = lambda _, c, m, n: column_fmt(c, m, n)
 
-        value = rec_getattr(model, name)
+                return column_fmt(context, model, name)
+
+        value = self._get_field_value(model, name)
+
+        choices_map = self._column_choices_map.get(name, {})
+        if choices_map:
+            return choices_map.get(value) or value
 
         choices_map = self._column_choices_map.get(name, {})
         if choices_map:
@@ -808,7 +898,15 @@ class BaseModelView(BaseView, ActionsMixin):
 
         type_fmt = self.column_type_formatters.get(type(value))
         if type_fmt is not None:
-            value = type_fmt(value)
+            try:
+                value = type_fmt(self, value)
+            except TypeError:
+                warnings.warn('Type formatter prototype was changed to accept view as first input parameter.\n' +
+                              'Please update %s %s formatter to accept 2 parameters.' % (self.name, type(value)),
+                              stacklevel=2)
+                self.column_type_formatters[type(value)] = lambda _, value: type_fmt(value)
+
+                value = type_fmt(value)
 
         return value
 
@@ -942,6 +1040,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         return self.render(self.create_template,
                            form=form,
+                           form_widget_args=self.form_widget_args,
                            return_url=return_url)
 
     @expose('/edit/', methods=('GET', 'POST'))
@@ -970,8 +1069,10 @@ class BaseModelView(BaseView, ActionsMixin):
                 return redirect(return_url)
 
         return self.render(self.edit_template,
-                               form=form,
-                               return_url=return_url)
+                           model=model,
+                           form=form,
+                           form_widget_args=self.form_widget_args,
+                           return_url=return_url)
 
     @expose('/delete/', methods=('POST',))
     def delete_view(self):

@@ -3,12 +3,13 @@ import logging
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import subqueryload
 from sqlalchemy.sql.expression import desc
-from sqlalchemy import or_, Column
+from sqlalchemy import or_, Column, func
 
 from flask import flash, request
 from flask.ext.admin.tools import ObsoleteAttr
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
+from flask.ext.admin.model.helpers import get_default_order
 from flask.ext.admin.actions import action
 from flask.ext.admin.contrib.sqlamodel import form, filters, tools
 from .typefmt import DEFAULT_FORMATTERS
@@ -578,9 +579,67 @@ class ModelView(BaseModelView):
     # Database-related API
     def get_query(self):
         """
-            Return a query for the model type
+            Return a query for the model type.
+
+            If you override this method, don't forget to override `get_count_query` as well.
         """
         return self.session.query(self.model)
+
+    def get_count_query(self):
+        """
+            Return a the count query for the model type
+        """
+        return self.session.query(func.count('*')).select_from(self.model)
+
+    def _order_by(self, query, joins, sort_field, sort_desc):
+        """
+            Apply order_by to the query
+
+            :param query:
+                Query
+            :param joins:
+                Joins set
+            :param sort_field:
+                Sort field
+            :param sort_desc:
+                Ascending or descending
+        """
+        # TODO: Preprocessing for joins
+        # Try to handle it as a string
+        if isinstance(sort_field, basestring):
+            # Create automatic join against a table if column name
+            # contains dot.
+            if '.' in sort_field:
+                parts = sort_field.split('.', 1)
+
+                if parts[0] not in joins:
+                    query = query.join(parts[0])
+                    joins.add(parts[0])
+        elif isinstance(sort_field, InstrumentedAttribute):
+            # SQLAlchemy 0.8+ uses 'parent' as a name
+            mapper = getattr(sort_field, 'parent', None)
+            if mapper is None:
+                # SQLAlchemy 0.7.x uses parententity
+                mapper = getattr(sort_field, 'parententity', None)
+
+            if mapper is not None:
+                table = mapper.tables[0]
+
+                if table.name not in joins:
+                    query = query.join(table)
+                    joins.add(table.name)
+        elif isinstance(sort_field, Column):
+            pass
+        else:
+            raise TypeError('Wrong argument type')
+
+        if sort_field is not None:
+            if sort_desc:
+                query = query.order_by(desc(sort_field))
+            else:
+                query = query.order_by(sort_field)
+
+        return query, joins
 
     def get_list(self, page, sort_column, sort_desc, search, filters, execute=True):
         """
@@ -604,6 +663,7 @@ class ModelView(BaseModelView):
         joins = set()
 
         query = self.get_query()
+        count_query = self.get_count_query()
 
         # Apply search criteria
         if self._search_supported and search:
@@ -611,6 +671,7 @@ class ModelView(BaseModelView):
             if self._search_joins:
                 for jn in self._search_joins.values():
                     query = query.join(jn)
+                    count_query = count_query.join(jn)
 
                 joins = set(self._search_joins.keys())
 
@@ -624,6 +685,7 @@ class ModelView(BaseModelView):
                 stmt = tools.parse_like_term(term)
                 filter_stmt = [c.ilike(stmt) for c in self._search_fields]
                 query = query.filter(or_(*filter_stmt))
+                count_query = count_query.filter(or_(*filter_stmt))
 
         # Apply filters
         if filters and self._filters:
@@ -638,13 +700,15 @@ class ModelView(BaseModelView):
                 for table in join_tables:
                     if table.name not in joins:
                         query = query.join(table)
-                        joins.add(table)
+                        count_query = count_query.join(table)
+                        joins.add(table.name)
 
                 # Apply filter
                 query = flt.apply(query, value)
+                count_query = flt.apply(count_query, value)
 
         # Calculate number of rows
-        count = query.count()
+        count = count_query.scalar()
 
         # Auto join
         for j in self._auto_joins:
@@ -655,33 +719,12 @@ class ModelView(BaseModelView):
             if sort_column in self._sortable_columns:
                 sort_field = self._sortable_columns[sort_column]
 
-                # TODO: Preprocessing for joins
-                # Try to handle it as a string
-                if isinstance(sort_field, basestring):
-                    # Create automatic join against a table if column name
-                    # contains dot.
-                    if '.' in sort_field:
-                        parts = sort_field.split('.', 1)
+                query, joins = self._order_by(query, joins, sort_field, sort_desc)
+        else:
+            order = get_default_order(self)
 
-                        if parts[0] not in joins:
-                            query = query.join(parts[0])
-                            joins.add(parts[0])
-                elif isinstance(sort_field, InstrumentedAttribute):
-                    table = sort_field.parententity.tables[0]
-
-                    if table.name not in joins:
-                        query = query.join(table)
-                        joins.add(table.name)
-                elif isinstance(sort_field, Column):
-                    pass
-                else:
-                    raise TypeError('Wrong argument type')
-
-                if sort_field is not None:
-                    if sort_desc:
-                        query = query.order_by(desc(sort_field))
-                    else:
-                        query = query.order_by(sort_field)
+            if order:
+                query, joins = self._order_by(query, joins, order[0], order[1])
 
         # Pagination
         if page is not None:
@@ -718,12 +761,15 @@ class ModelView(BaseModelView):
             self.session.add(model)
             self.on_model_change(form, model)
             self.session.commit()
-            return True
         except Exception, ex:
             flash(gettext('Failed to create model. %(error)s', error=str(ex)), 'error')
             logging.exception('Failed to create model')
             self.session.rollback()
             return False
+        else:
+            self.after_model_change(form, model, True)
+
+        return True
 
     def update_model(self, form, model):
         """
@@ -738,12 +784,15 @@ class ModelView(BaseModelView):
             form.populate_obj(model)
             self.on_model_change(form, model)
             self.session.commit()
-            return True
         except Exception, ex:
             flash(gettext('Failed to update model. %(error)s', error=str(ex)), 'error')
             logging.exception('Failed to update model')
             self.session.rollback()
             return False
+        else:
+            self.after_model_change(form, model, False)
+
+        return True
 
     def delete_model(self, model):
         """

@@ -25,7 +25,7 @@
     </li>
     {% else %}
     <li class="disabled">
-        <a href="#">&laquo;</a>
+        <a href="javascript:void(0)">&laquo;</a>
     </li>
     {% endif %}
     {% if page > 0 %}
@@ -34,14 +34,14 @@
     </li>
     {% else %}
     <li class="disabled">
-        <a href="#">&lt;</a>
+        <a href="javascript:void(0)">&lt;</a>
     </li>
     {% endif %}
 
     {% for p in range(min, max) %}
     {% if page == p %}
     <li class="active">
-        <a href="#">{{ p + 1 }}</a>
+        <a href="javascript:void(0)">{{ p + 1 }}</a>
     </li>
     {% else %}
     <li>
@@ -56,7 +56,7 @@
     </li>
     {% else %}
     <li class="disabled">
-        <a href="#">&gt;</a>
+        <a href="javascript:void(0)">&gt;</a>
     </li>
     {% endif %}
     {% if max < pages %}
@@ -65,7 +65,7 @@
     </li>
     {% else %}
     <li class="disabled">
-        <a href="#">&raquo;</a>
+        <a href="javascript:void(0)">&raquo;</a>
     </li>
     {% endif %}
     </ul>
@@ -73,8 +73,9 @@
 {% endif %}
 {%- endmacro %}
 
-{% macro render_field(form, field, set_focus=False, enable_disabling=False) %}
-  <div class="control-group{{ ' error' if field.errors }}">
+{# ---------------------- Forms -------------------------- #}
+{% macro render_field(form, field, set_focus=False, kwargs={}) %}
+  <div class="control-group{{ ' error' if field.errors else '' }}">
     <div class="control-label">
       {{ field.label.text }}
       {% if h.is_required_form_field(field) %}
@@ -84,25 +85,11 @@
       {% endif %}
     </div>
     <div class="controls">
-      {% if enable_disabling %}
-        <div class="btn-group" style="float: left; margin-right: 10px" data-toggle="buttons-radio">
-            <button data-role="enable-formfield" class="btn">On</button>
-            <button data-role="disable-formfield" class="btn active">Off</button>
-        </div>
-      {% endif %}
     <div>
       {% if set_focus %}
-        {% if enable_disabling %}
-            {{ field(autofocus='autofocus', disabled='disabled')|safe }}
-        {% else %}
-            {{ field(autofocus='autofocus')|safe }}
-        {% endif %}
+      {{ field(autofocus='autofocus', **kwargs)|safe }}
       {% else %}
-        {% if enable_disabling %}
-          {{ field(disabled='disabled')|safe }}
-        {% else %}
-          {{ field()|safe }}
-        {% endif %}
+      {{ field(**kwargs)|safe }}
       {% endif %}
     </div>
     {% if field.description %}
@@ -119,13 +106,13 @@
   </div>
 {% endmacro %}
 
-{% macro render_form_fields(form, set_focus=True, enable_disabling=False) %}
-    {% if form %}
-        {{ form.hidden_tag() if form.hidden_tag is defined }}
-        {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
-            {{ render_field(form, f, not loop.index0 and set_focus, enable_disabling) }}
-        {% endfor %}
-    {% endif %}
+{% macro render_form_fields(form, set_focus=True, widget_args={}, enable_disabling=False) %}
+    {{ form.hidden_tag() if form.hidden_tag is defined }}
+
+    {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
+      {% set kwargs = widget_args.get(f.name, {}) %}
+      {{ render_field(form, f, not loop.index0 and set_focus, enable_disabling, kwargs) }}
+    {% endfor %}
 {% endmacro %}
 
 {% macro form_tag(form=None, action=None) %}
@@ -150,9 +137,9 @@
     </div>
 {% endmacro %}
 
-{% macro render_form(form, cancel_url, extra=None) -%}
+{% macro render_form(form, cancel_url, extra=None, widget_args={}) -%}
     {% call form_tag() %}
-        {{ render_form_fields(form) }}
+        {{ render_form_fields(form, widget_args) }}
         {{ render_form_buttons(cancel_url, extra) }}
     {% endcall %}
 {% endmacro %}
