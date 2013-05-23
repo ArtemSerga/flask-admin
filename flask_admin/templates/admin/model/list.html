@@ -130,10 +130,7 @@
         <input type="hidden" name="action" value="multiple_update" />
         <input type="hidden" name="url" value="{{ request.url }}" />
         <fieldset>
-
-            {#            {{ lib.render_form_fields(multiple_update_form, enable_disabling=False) }}#}
-            {{ lib.render_form_fields(multiple_update_form, enable_disabling=True) }}
-
+{#            {{ lib.render_form_fields(multiple_update_form, enable_disabling=True) }}#}
             {{ lib.render_form_buttons(cancel_url=None) }}
         </fieldset>
     </div>        

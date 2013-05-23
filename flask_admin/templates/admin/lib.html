@@ -111,7 +111,7 @@
 
     {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
       {% set kwargs = widget_args.get(f.name, {}) %}
-      {{ render_field(form, f, not loop.index0 and set_focus, enable_disabling, kwargs) }}
+      {{ render_field(form, f, not loop.index0 and set_focus, kwargs, enable_disabling) }}
     {% endfor %}
 {% endmacro %}
 
@@ -143,4 +143,3 @@
         {{ render_form_buttons(cancel_url, extra) }}
     {% endcall %}
 {% endmacro %}
-
