@@ -74,7 +74,7 @@
 {%- endmacro %}
 
 {# ---------------------- Forms -------------------------- #}
-{% macro render_field(form, field, set_focus=False, kwargs={}) %}
+{% macro render_field(form, field, set_focus=False, kwargs={}, enable_disabling=False) %}
   <div class="control-group{{ ' error' if field.errors else '' }}">
     <div class="control-label">
       {{ field.label.text }}
@@ -85,11 +85,25 @@
       {% endif %}
     </div>
     <div class="controls">
+      {% if enable_disabling %}
+        <div class="btn-group" style="float: left; margin-right: 10px" data-toggle="buttons-radio">
+            <button data-role="enable-formfield" class="btn">On</button>
+            <button data-role="disable-formfield" class="btn active">Off</button>
+        </div>
+      {% endif %}
     <div>
       {% if set_focus %}
-      {{ field(autofocus='autofocus', **kwargs)|safe }}
+        {% if enable_disabling %}
+            {{ field(autofocus='autofocus', disabled='disabled', **kwargs)|safe }}
+        {% else %}
+            {{ field(autofocus='autofocus', **kwargs)|safe }}
+        {% endif %}
       {% else %}
-      {{ field(**kwargs)|safe }}
+        {% if enable_disabling %}
+          {{ field(disabled='disabled', **kwargs)|safe }}
+        {% else %}
+          {{ field(**kwargs)|safe }}
+        {% endif %}
       {% endif %}
     </div>
     {% if field.description %}

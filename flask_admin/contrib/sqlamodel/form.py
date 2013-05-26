@@ -21,7 +21,9 @@ class AdminModelConverter(ModelConverterBase):
     """
         SQLAlchemy model to form converter
     """
-    def __init__(self, session, view):
+    chosen_enabled = True
+
+    def __init__(self, session, view, chosen_enabled=chosen_enabled):
         super(AdminModelConverter, self).__init__()
 
         self.session = session
@@ -93,8 +95,12 @@ class AdminModelConverter(ModelConverterBase):
                 kwargs['query_factory'] = lambda: self.session.query(remote_model)
 
             if prop.direction.name == 'MANYTOONE':
-                return QuerySelectField(widget=form.Select2Widget(),
-                                        **kwargs)
+                if self.chosen_enabled:
+                    return QuerySelectField(widget=form.Select2Widget(),
+                                            **kwargs)
+                else:
+                    return QuerySelectField(**kwargs)
+
             elif prop.direction.name == 'ONETOMANY':
                 # Skip backrefs
                 if not local_column.foreign_keys and getattr(self.view, 'column_hide_backrefs', False):
