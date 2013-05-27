@@ -21,7 +21,8 @@
   <body>
     {% block page_body %}
     <div class="container-fluid">
-      <div class="navbar">
+{#      <div class="navbar navbar-inverse navbar-fixed-top">#}
+      <div class="navbar navbar-inverse navbar-fixed-top">
         <div class="navbar-inner">
           {% block brand %}
           <span class="brand">{{ admin_view.admin.name }}</span>
@@ -38,6 +39,7 @@
       {{ layout.messages() }}
 
       {% block body %}{% endblock %}
+
     </div>
     {% endblock %}
     <script src="{{ url_for('admin.static', filename='js/jquery-1.8.3.min.js') }}" type="text/javascript"></script>
