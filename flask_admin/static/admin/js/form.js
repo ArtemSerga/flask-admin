@@ -22,7 +22,7 @@
 
       this.addInlineField = function(id, el, template) {
         var $el = $(el);
-        var $template = $(template);
+        var $template = $($(template).text());
 
         // Figure out new field ID
         var lastField = $el.children('.fa-inline-field').last();
@@ -30,7 +30,7 @@
         var prefix = id + '-0';
         if (lastField.length > 0) {
             var parts = $(lastField[0]).attr('id').split('-');
-            idx = parseInt(parts[parts.length - 1]) + 1;
+            idx = parseInt(parts[parts.length - 1], 10) + 1;
             prefix = id + '-' + idx;
         }
 
@@ -63,7 +63,7 @@
       this.applyGlobalStyles = function(parent) {
         $('[data-role=select2]', parent).select2({width: 'resolve'});
         $('[data-role=select2blank]', parent).select2({allowClear: true, width: 'resolve'});
-        $('[data-role=select2tags]', parent).select2({tags: [], tokenSeparators: [','], width: 'resolve'});
+        $('[data-role=select2tags]', parent).select2({multiple: true, tokenSeparators: [','], width: 'resolve'});
         $('[data-role=datepicker]', parent).datepicker();
         $('[data-role=datetimepicker]', parent).datepicker({displayTime: true});
       };

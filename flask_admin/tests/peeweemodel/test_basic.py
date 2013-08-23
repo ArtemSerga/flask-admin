@@ -1,9 +1,18 @@
 from nose.tools import eq_, ok_
+from nose.plugins.skip import SkipTest
+
+# Skip test on PY3
+from flask.ext.admin._compat import PY2
+if not PY2:
+    raise SkipTest('Peewee is not Python 3 compatible')
 
 import peewee
 
-from flask.ext import wtf
-from flask.ext.admin.contrib.peeweemodel import ModelView
+from wtforms import fields
+
+from flask.ext.admin import form
+from flask.ext.admin._compat import iteritems
+from flask.ext.admin.contrib.peewee import ModelView
 
 from . import setup
 
@@ -12,7 +21,7 @@ class CustomModelView(ModelView):
     def __init__(self, model,
                  name=None, category=None, endpoint=None, url=None,
                  **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in iteritems(kwargs):
             setattr(self, k, v)
 
         super(CustomModelView, self).__init__(model,
@@ -73,10 +82,10 @@ def test_model():
     eq_(view._filters, None)
 
     # Verify form
-    eq_(view._create_form_class.test1.field_class, wtf.TextField)
-    eq_(view._create_form_class.test2.field_class, wtf.TextField)
-    eq_(view._create_form_class.test3.field_class, wtf.TextAreaField)
-    eq_(view._create_form_class.test4.field_class, wtf.TextAreaField)
+    eq_(view._create_form_class.test1.field_class, fields.TextField)
+    eq_(view._create_form_class.test2.field_class, fields.TextField)
+    eq_(view._create_form_class.test3.field_class, fields.TextAreaField)
+    eq_(view._create_form_class.test4.field_class, fields.TextAreaField)
 
     # Make some test clients
     client = app.test_client()
@@ -139,3 +148,49 @@ def test_default_sort():
     eq_(data[0].test1, 'a')
     eq_(data[1].test1, 'b')
     eq_(data[2].test1, 'c')
+
+
+def test_extra_fields():
+    app, db, admin = setup()
+
+    Model1, _ = create_models(db)
+
+    view = CustomModelView(
+        Model1,
+        form_extra_fields={
+            'extra_field': fields.TextField('Extra Field')
+        }
+    )
+    admin.add_view(view)
+
+    client = app.test_client()
+
+    rv = client.get('/admin/model1view/new/')
+    eq_(rv.status_code, 200)
+
+    # Check presence and order
+    data = rv.data.decode('utf-8')
+    ok_('Extra Field' in data)
+    pos1 = data.find('Extra Field')
+    pos2 = data.find('Test1')
+    ok_(pos2 < pos1)
+
+
+def test_custom_form_base():
+    app, db, admin = setup()
+
+    class TestForm(form.BaseForm):
+        pass
+
+    Model1, _ = create_models(db)
+
+    view = CustomModelView(
+        Model1,
+        form_base_class=TestForm
+    )
+    admin.add_view(view)
+
+    ok_(hasattr(view._create_form_class, 'test1'))
+
+    create_form = view.create_form()
+    ok_(isinstance(create_form, TestForm))

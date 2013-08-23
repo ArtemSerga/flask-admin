@@ -1,20 +1,23 @@
 import logging
 
-from flask import flash
+from flask import request, flash, abort, Response
 
+from flask.ext.admin import expose
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
-from flask.ext.admin.model.helpers import get_default_order
+from flask.ext.admin._compat import iteritems, string_types
 
 import mongoengine
+import gridfs
+from mongoengine.connection import get_db
 from bson.objectid import ObjectId
 
 from flask.ext.admin.actions import action
-from flask.ext.admin.form import BaseForm
 from .filters import FilterConverter, BaseMongoEngineFilter
-from .form import model_form, CustomModelConverter
+from .form import get_form, CustomModelConverter
 from .typefmt import DEFAULT_FORMATTERS
 from .tools import parse_like_term
+from .helpers import format_error
 
 
 SORTABLE_FIELDS = set((
@@ -30,7 +33,7 @@ SORTABLE_FIELDS = set((
     mongoengine.EmailField,
     mongoengine.UUIDField,
     mongoengine.URLField
-    ))
+))
 
 
 class ModelView(BaseModelView):
@@ -62,6 +65,9 @@ class ModelView(BaseModelView):
         Model form conversion class. Use this to implement custom
         field conversion logic.
 
+        Custom class should be derived from the
+        `flask.ext.admin.contrib.mongoengine.form.CustomModelConverter`.
+
         For example::
 
             class MyModelConverter(AdminModelConverter):
@@ -82,6 +88,92 @@ class ModelView(BaseModelView):
     column_type_formatters = DEFAULT_FORMATTERS
     """
         Customized type formatters for MongoEngine backend
+    """
+
+    allowed_search_types = (mongoengine.StringField,
+                            mongoengine.URLField,
+                            mongoengine.EmailField)
+    """
+        List of allowed search field types.
+    """
+
+    form_subdocuments = {}
+    """
+        Subdocument configuration options.
+
+        This field accepts dictionary, where key is field name and value is either dictionary or instance of the
+        `flask.ext.admin.contrib.EmbeddedForm`.
+
+        Consider following example::
+
+            class Comment(db.EmbeddedDocument):
+                name = db.StringField(max_length=20, required=True)
+                value = db.StringField(max_length=20)
+
+            class Post(db.Document):
+                text = db.StringField(max_length=30)
+                data = db.EmbeddedDocumentField(Comment)
+
+            class MyAdmin(ModelView):
+                form_subdocuments = {
+                    'data': {
+                        'form_columns': ('name',)
+                    }
+                }
+
+        In this example, `Post` model has child `Comment` subdocument. When generating form for `Comment` embedded
+        document, Flask-Admin will only create `name` field.
+
+        It is also possible to use class-based embedded document configuration:
+
+            class CommentEmbed(EmbeddedForm):
+                form_columns = ('name',)
+
+            class MyAdmin(ModelView):
+                form_subdocuments = {
+                    'data': CommentEmbed()
+                }
+
+        Arbitrary depth nesting is supported::
+
+            class SomeEmbed(EmbeddedForm):
+                form_excluded_columns = ('test',)
+
+            class CommentEmbed(EmbeddedForm):
+                form_columns = ('name',)
+                form_subdocuments = {
+                    'inner': SomeEmbed()
+                }
+
+            class MyAdmin(ModelView):
+                form_subdocuments = {
+                    'data': CommentEmbed()
+                }
+
+        There's also support for forms embedded into `ListField`. All you have
+        to do is to create nested rule with `None` as a name. Even though it
+        is slightly confusing, but that's how Flask-MongoEngine creates
+        form fields embedded into ListField::
+
+            class Comment(db.EmbeddedDocument):
+                name = db.StringField(max_length=20, required=True)
+                value = db.StringField(max_length=20)
+
+            class Post(db.Document):
+                text = db.StringField(max_length=30)
+                data = db.ListField(db.EmbeddedDocumentField(Comment))
+
+            class MyAdmin(ModelView):
+                form_subdocuments = {
+                    'data': {
+                        'form_subdocuments': {
+                            None: {
+                                'form_columns': ('name',)
+                            }
+                        }
+
+                    }
+                }
     """
 
     def __init__(self, model, name=None,
@@ -116,7 +208,7 @@ class ModelView(BaseModelView):
         if model is None:
             model = self.model
 
-        return sorted(model._fields.iteritems(), key=lambda n: n[1].creation_counter)
+        return sorted(iteritems(model._fields), key=lambda n: n[1].creation_counter)
 
     def scaffold_pk(self):
         # MongoEngine models have predefined 'id' as a key
@@ -172,7 +264,7 @@ class ModelView(BaseModelView):
         """
         if self.column_searchable_list:
             for p in self.column_searchable_list:
-                if isinstance(p, basestring):
+                if isinstance(p, string_types):
                     p = self.model._fields.get(p)
 
                 if p is None:
@@ -181,7 +273,7 @@ class ModelView(BaseModelView):
                 field_type = type(p)
 
                 # Check type
-                if (field_type != mongoengine.StringField):
+                if (field_type not in self.allowed_search_types):
                         raise Exception('Can only search on text columns. ' +
                                         'Failed to setup search for "%s"' % p)
 
@@ -196,7 +288,7 @@ class ModelView(BaseModelView):
             :param name:
                 Either field name or field instance
         """
-        if isinstance(name, basestring):
+        if isinstance(name, string_types):
             attr = self.model._fields.get(name)
         else:
             attr = name
@@ -207,7 +299,7 @@ class ModelView(BaseModelView):
         # Find name
         visible_name = None
 
-        if not isinstance(name, basestring):
+        if not isinstance(name, string_types):
             visible_name = self.get_column_name(attr.name)
 
         if not visible_name:
@@ -231,13 +323,16 @@ class ModelView(BaseModelView):
         return isinstance(filter, BaseMongoEngineFilter)
 
     def scaffold_form(self):
-        # TODO: Fix base_class
-        form_class = model_form(self.model,
-                        base_class=BaseForm,
-                        only=self.form_columns,
-                        exclude=self.form_excluded_columns,
-                        field_args=self.form_args,
-                        converter=self.model_form_converter())
+        """
+            Create form from the model.
+        """
+        form_class = get_form(self.model,
+                              self.model_form_converter(self),
+                              base_class=self.form_base_class,
+                              only=self.form_columns,
+                              exclude=self.form_excluded_columns,
+                              field_args=self.form_args,
+                              extra_fields=self.form_extra_fields)
 
         return form_class
 
@@ -302,7 +397,7 @@ class ModelView(BaseModelView):
         if sort_column:
             query = query.order_by('%s%s' % ('-' if sort_desc else '', sort_column))
         else:
-            order = get_default_order(self)
+            order = self._get_default_order()
 
             if order:
                 query = query.order_by('%s%s' % ('-' if order[1] else '', order[0]))
@@ -325,7 +420,13 @@ class ModelView(BaseModelView):
             :param id:
                 Model ID
         """
-        return self.get_query().filter(pk=id).first()
+        try:
+            return self.get_query().filter(pk=id).first()
+        except mongoengine.ValidationError as ex:
+            flash(gettext('Failed to get model. %(error)s',
+                          error=format_error(ex)),
+                  'error')
+            return None
 
     def create_model(self, form):
         """
@@ -337,10 +438,14 @@ class ModelView(BaseModelView):
         try:
             model = self.model()
             form.populate_obj(model)
-            self.on_model_change(form, model)
+            self._on_model_change(form, model, True)
             model.save()
-        except Exception, ex:
-            flash(gettext('Failed to create model. %(error)s', error=str(ex)),
+        except Exception as ex:
+            if self._debug:
+                raise
+
+            flash(gettext('Failed to create model. %(error)s',
+                          error=format_error(ex)),
                   'error')
             logging.exception('Failed to create model')
             return False
@@ -360,10 +465,14 @@ class ModelView(BaseModelView):
         """
         try:
             form.populate_obj(model)
-            self.on_model_change(form, model)
+            self._on_model_change(form, model, False)
             model.save()
-        except Exception, ex:
-            flash(gettext('Failed to update model. %(error)s', error=str(ex)),
+        except Exception as ex:
+            if self._debug:
+                raise
+
+            flash(gettext('Failed to update model. %(error)s',
+                          error=format_error(ex)),
                   'error')
             logging.exception('Failed to update model')
             return False
@@ -383,11 +492,37 @@ class ModelView(BaseModelView):
             self.on_model_delete(model)
             model.delete()
             return True
-        except Exception, ex:
-            flash(gettext('Failed to delete model. %(error)s', error=str(ex)),
+        except Exception as ex:
+            if self._debug:
+                raise
+
+            flash(gettext('Failed to delete model. %(error)s',
+                          error=format_error(ex)),
                   'error')
             logging.exception('Failed to delete model')
             return False
+
+    # FileField access API
+    @expose('/api/file/')
+    def api_file_view(self):
+        pk = request.args.get('id')
+        coll = request.args.get('coll')
+        db = request.args.get('db', 'default')
+
+        if not pk or not coll or not db:
+            abort(404)
+
+        fs = gridfs.GridFS(get_db(db), coll)
+
+        data = fs.get(ObjectId(pk))
+        if not data:
+            abort(404)
+
+        return Response(data.read(),
+                        content_type=data.content_type,
+                        headers={
+                            'Content-Length': data.length
+                        })
 
     # Default model actions
     def is_action_allowed(self, name):
@@ -412,6 +547,9 @@ class ModelView(BaseModelView):
                            '%(count)s models were successfully deleted.',
                            count,
                            count=count))
-        except Exception, ex:
+        except Exception as ex:
+            if self._debug:
+                raise
+
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)),
                   'error')

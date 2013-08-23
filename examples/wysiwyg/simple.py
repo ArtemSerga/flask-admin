@@ -1,8 +1,10 @@
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 
-from flask.ext import admin, wtf
-from flask.ext.admin.contrib import sqlamodel
+from wtforms import fields, widgets
+
+from flask.ext import admin
+from flask.ext.admin.contrib import sqla
 
 # Create application
 app = Flask(__name__)
@@ -17,13 +19,13 @@ db = SQLAlchemy(app)
 
 
 # Define wtforms widget and field
-class CKTextAreaWidget(wtf.TextArea):
+class CKTextAreaWidget(widgets.TextArea):
     def __call__(self, field, **kwargs):
         kwargs.setdefault('class_', 'ckeditor')
         return super(CKTextAreaWidget, self).__call__(field, **kwargs)
 
 
-class CKTextAreaField(wtf.TextAreaField):
+class CKTextAreaField(fields.TextAreaField):
     widget = CKTextAreaWidget()
 
 
@@ -38,7 +40,7 @@ class Page(db.Model):
 
 
 # Customized admin interface
-class PageAdmin(sqlamodel.ModelView):
+class PageAdmin(sqla.ModelView):
     form_overrides = dict(text=CKTextAreaField)
 
     create_template = 'create.html'
@@ -62,5 +64,4 @@ if __name__ == '__main__':
     db.create_all()
 
     # Start app
-    app.debug = True
-    app.run('0.0.0.0', 8000)
+    app.run(debug=True)

@@ -30,6 +30,7 @@ form.icon button {
 
 a.icon {
     text-decoration: none;
+    color: black;
 }
 
 /* Model search form */
@@ -91,6 +92,29 @@ table.filters {
     float: right;
 }
 
+/* Image thumbnails */
+.image-thumbnail img {
+    max-width: 100px;
+    max-height: 100px;
+}
+
+/* Forms */
+.form-horizontal .control-label {
+    width: 100px;
+    text-align: left;
+    margin-left: 4px;
+}
+
+.form-horizontal .controls {
+    margin-left: 110px;
+}
+
+/* Inline forms */
+.inline-field .inline-form {
+    border-left: 1px solid #eeeeee;
+    padding-left: 8px;
+    margin-bottom: 4px;
+}
 
 /* Patch Select2 */
 .select2-results li {

@@ -7,12 +7,12 @@
     {{ super() }}
     <link href="{{ url_for('admin.static', filename='overlay/overlay.css') }}" rel="stylesheet">
     <link href="{{ url_for('admin.static', filename='select2/select2.css') }}" rel="stylesheet">
-    <link href="{{ url_for('admin.static', filename='css/datepicker.css') }}" rel="stylesheet">
+    <link href="{{ url_for('admin.static', filename='datepicker/bootstrap-datepicker.css') }}" rel="stylesheet">
 {% endblock %}
 
 {% block body %}
     {% block model_menu_bar %}
-    <ul class="nav nav-pills">
+    <ul class="nav nav-tabs">
         <li class="active">
             <a href="javascript:void(0)">{{ _gettext('List') }} ({{ count }})</a>
         </li>
@@ -121,6 +121,16 @@
                 {% endfor %}
             {% endblock %}
         </tr>
+        {% else %}
+        <tr>
+            <td colspan="999">
+                {% block empty_list_message %}
+                <div class="text-center">
+                    {{ admin_view.get_empty_list_message() }}
+                </div>
+                {% endblock %}
+            </td>
+        </tr>
         {% endfor %}
     </table>
 
@@ -147,9 +157,9 @@
 
 {% block tail %}
     {{ super() }}
-    <script src="{{ url_for('admin.static', filename='js/bootstrap-datepicker.js') }}"></script>
-    <script src="{{ url_for('admin.static', filename='js/form.js') }}"></script>
-    <script src="{{ url_for('admin.static', filename='js/filters.js') }}"></script>
+    <script src="{{ url_for('admin.static', filename='datepicker/bootstrap-datepicker.js') }}"></script>
+    <script src="{{ url_for('admin.static', filename='admin/js/form.js') }}"></script>
+    <script src="{{ url_for('admin.static', filename='admin/js/filters.js') }}"></script>
     <script src="{{ url_for('admin.static', filename='js/jquery.tools.min.js') }}"></script>
 
     {{ actionlib.script(_gettext('Please select at least one model.'),
@@ -165,7 +175,7 @@
             {% if filter_groups is not none and filter_data is not none %}
                 var filter = new AdminFilters(
                     '#filter_form', '.field-filters',
-                    {{ admin_view._filter_dict|tojson|safe }},
+                    {{ admin_view._get_filter_dict()|tojson|safe }},
                     {{ filter_data|tojson|safe }},
                     {{ filter_types|tojson|safe }}
                 );

@@ -3,16 +3,15 @@ import logging
 from flask import flash
 
 from flask.ext.admin import form
+from flask.ext.admin._compat import string_types
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
-from flask.ext.admin.model.helpers import get_default_order
 
 from peewee import PrimaryKeyField, ForeignKeyField, Field, CharField, TextField
-from wtfpeewee.orm import model_form
 
 from flask.ext.admin.actions import action
-from flask.ext.admin.contrib.peeweemodel import filters
-from .form import CustomModelConverter, InlineModelConverter, save_inline
+from flask.ext.admin.contrib.peewee import filters
+from .form import get_form, CustomModelConverter, InlineModelConverter, save_inline
 from .tools import get_primary_key, parse_like_term
 
 
@@ -22,7 +21,7 @@ class ModelView(BaseModelView):
         Collection of the column filters.
 
         Can contain either field names or instances of
-        :class:`flask.ext.admin.contrib.peeweemodel.filters.BaseFilter` classes.
+        :class:`flask.ext.admin.contrib.peewee.filters.BaseFilter` classes.
 
         For example::
 
@@ -56,7 +55,7 @@ class ModelView(BaseModelView):
 
             class MyInlineModelConverter(AdminModelConverter):
                 def post_process(self, form_class, info):
-                    form_class.value = wtf.TextField('value')
+                    form_class.value = TextField('value')
                     return form_class
 
             class MyAdminView(ModelView):
@@ -174,14 +173,13 @@ class ModelView(BaseModelView):
     def init_search(self):
         if self.column_searchable_list:
             for p in self.column_searchable_list:
-                if isinstance(p, basestring):
+                if isinstance(p, string_types):
                     p = getattr(self.model, p)
 
                 field_type = type(p)
 
                 # Check type
-                if (field_type != CharField and
-                    field_type != TextField):
+                if (field_type != CharField and field_type != TextField):
                         raise Exception('Can only search on text columns. ' +
                                         'Failed to setup search for "%s"' % p)
 
@@ -190,7 +188,7 @@ class ModelView(BaseModelView):
         return bool(self._search_fields)
 
     def scaffold_filters(self, name):
-        if isinstance(name, basestring):
+        if isinstance(name, string_types):
             attr = getattr(self.model, name, None)
         else:
             attr = name
@@ -203,7 +201,7 @@ class ModelView(BaseModelView):
             visible_name = '%s / %s' % (self.get_column_name(attr.model_class.__name__),
                                         self.get_column_name(attr.name))
         else:
-            if not isinstance(name, basestring):
+            if not isinstance(name, string_types):
                 visible_name = self.get_column_name(attr.name)
             else:
                 visible_name = self.get_column_name(name)
@@ -219,12 +217,12 @@ class ModelView(BaseModelView):
         return isinstance(filter, filters.BasePeeweeFilter)
 
     def scaffold_form(self):
-        form_class = model_form(self.model,
-                        base_class=form.BaseForm,
-                        only=self.form_columns,
-                        exclude=self.form_excluded_columns,
-                        field_args=self.form_args,
-                        converter=self.model_form_converter())
+        form_class = get_form(self.model, self.model_form_converter(),
+                              base_class=self.form_base_class,
+                              only=self.form_columns,
+                              exclude=self.form_excluded_columns,
+                              field_args=self.form_args,
+                              extra_fields=self.form_extra_fields)
 
         if self.inline_models:
             form_class = self.scaffold_inline_form_models(form_class)
@@ -237,9 +235,9 @@ class ModelView(BaseModelView):
 
         for m in self.inline_models:
             form_class = inline_converter.contribute(converter,
-                                                self.model,
-                                                form_class,
-                                                m)
+                                                     self.model,
+                                                     form_class,
+                                                     m)
 
         return form_class
 
@@ -254,7 +252,7 @@ class ModelView(BaseModelView):
         return query
 
     def _order_by(self, query, joins, sort_field, sort_desc):
-        if isinstance(sort_field, basestring):
+        if isinstance(sort_field, string_types):
             field = getattr(self.model, sort_field)
             query = query.order_by(field.desc() if sort_desc else field.asc())
         elif isinstance(sort_field, Field):
@@ -314,7 +312,7 @@ class ModelView(BaseModelView):
 
             query, joins = self._order_by(query, joins, sort_field, sort_desc)
         else:
-            order = get_default_order(self)
+            order = self._get_default_order()
 
             if order:
                 query, joins = self._order_by(query, joins, order[0], order[1])
@@ -337,12 +335,15 @@ class ModelView(BaseModelView):
         try:
             model = self.model()
             form.populate_obj(model)
-            self.on_model_change(form, model)
+            self._on_model_change(form, model, True)
             model.save()
 
             # For peewee have to save inline forms after model was saved
             save_inline(form, model)
-        except Exception, ex:
+        except Exception as ex:
+            if self._debug:
+                raise
+
             flash(gettext('Failed to create model. %(error)s', error=str(ex)), 'error')
             logging.exception('Failed to create model')
             return False
@@ -354,12 +355,15 @@ class ModelView(BaseModelView):
     def update_model(self, form, model):
         try:
             form.populate_obj(model)
-            self.on_model_change(form, model)
+            self._on_model_change(form, model, False)
             model.save()
 
             # For peewee have to save inline forms after model was saved
             save_inline(form, model)
-        except Exception, ex:
+        except Exception as ex:
+            if self._debug:
+                raise
+
             flash(gettext('Failed to update model. %(error)s', error=str(ex)), 'error')
             logging.exception('Failed to update model')
             return False
@@ -373,7 +377,10 @@ class ModelView(BaseModelView):
             self.on_model_delete(model)
             model.delete_instance(recursive=True)
             return True
-        except Exception, ex:
+        except Exception as ex:
+            if self._debug:
+                raise
+
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)), 'error')
             logging.exception('Failed to delete model')
             return False
@@ -408,5 +415,8 @@ class ModelView(BaseModelView):
                            '%(count)s models were successfully deleted.',
                            count,
                            count=count))
-        except Exception, ex:
+        except Exception as ex:
+            if self._debug:
+                raise
+
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)), 'error')

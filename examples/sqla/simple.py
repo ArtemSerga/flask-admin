@@ -1,9 +1,13 @@
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 
-from flask.ext import admin, wtf
-from flask.ext.admin.contrib import sqlamodel
-from flask.ext.admin.contrib.sqlamodel import filters
+from wtforms import validators
+
+from flask.ext import admin
+from flask.ext.admin.contrib import sqla
+from flask.ext.admin.contrib.sqla import filters
+
+from flask.ext import wtf
 
 # Create application
 app = Flask(__name__)
@@ -24,7 +28,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True)
 
     # Required for administrative interface
-    def __unicode__(self):
+    def __str__(self):
         return self.username
 
 
@@ -46,7 +50,7 @@ class Post(db.Model):
 
     tags = db.relationship('Tag', secondary=post_tags_table)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.title
 
 
@@ -54,7 +58,7 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Unicode(64))
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
 
@@ -67,7 +71,7 @@ class UserInfo(db.Model):
     user_id = db.Column(db.Integer(), db.ForeignKey(User.id))
     user = db.relationship(User, backref='info')
 
-    def __unicode__(self):
+    def __str__(self):
         return '%s - %s' % (self.key, self.value)
 
 
@@ -77,7 +81,7 @@ class Tree(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('tree.id'))
     parent = db.relationship('Tree', remote_side=[id], backref='children')
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
 
@@ -88,12 +92,12 @@ def index():
 
 
 # Customized User model admin
-class UserAdmin(sqlamodel.ModelView):
+class UserAdmin(sqla.ModelView):
     inline_models = (UserInfo,)
 
 
 # Customized Post model admin
-class PostAdmin(sqlamodel.ModelView):
+class PostAdmin(sqla.ModelView):
     # Visible columns in the list view
     column_exclude_list = ['text']
 
@@ -114,7 +118,7 @@ class PostAdmin(sqlamodel.ModelView):
     # Pass arguments to WTForms. In this case, change label for text field to
     # be 'Big Text' and add required() validator.
     form_args = dict(
-                    text=dict(label='Big Text', validators=[wtf.required()])
+                    text=dict(label='Big Text', validators=[validators.required()])
                 )
 
     def __init__(self, session):
@@ -122,7 +126,7 @@ class PostAdmin(sqlamodel.ModelView):
         super(PostAdmin, self).__init__(Post, session)
 
 
-class TreeView(sqlamodel.ModelView):
+class TreeView(sqla.ModelView):
     inline_models = (Tree,)
 
 
@@ -132,7 +136,7 @@ if __name__ == '__main__':
 
     # Add views
     admin.add_view(UserAdmin(User, db.session))
-    admin.add_view(sqlamodel.ModelView(Tag, db.session))
+    admin.add_view(sqla.ModelView(Tag, db.session))
     admin.add_view(PostAdmin(db.session))
     admin.add_view(TreeView(Tree, db.session))
 
@@ -140,5 +144,4 @@ if __name__ == '__main__':
     db.create_all()
 
     # Start app
-    app.debug = True
-    app.run('0.0.0.0', 8000)
+    app.run(debug=True)

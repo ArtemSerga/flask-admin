@@ -1,6 +1,7 @@
 import inspect
 
 from flask.ext.admin.form import BaseForm
+from flask.ext.admin._compat import iteritems
 
 
 def converts(*args):
@@ -10,35 +11,38 @@ def converts(*args):
     return _inner
 
 
-class InlineFormAdmin(object):
+class InlineBaseFormAdmin(object):
     """
         Settings for inline form administration.
 
         You can use this class to customize displayed form.
         For example::
 
-            class MyUserInfoForm(InlineFormAdmin):
+            class MyUserInfoForm(InlineBaseFormAdmin):
                 form_columns = ('name', 'email')
     """
-    _defaults = ['form_columns', 'form_excluded_columns', 'form_args']
+    _defaults = ['form_base_class', 'form_columns', 'form_excluded_columns', 'form_args', 'form_extra_fields']
 
-    def __init__(self, model, **kwargs):
+    def __init__(self, **kwargs):
         """
             Constructor
 
-            :param model:
-                Target model class
             :param kwargs:
                 Additional options
         """
-        self.model = model
-
         for k in self._defaults:
             if not hasattr(self, k):
                 setattr(self, k, None)
 
-        for k, v in kwargs.iteritems():
+        for k, v in iteritems(kwargs):
             setattr(self, k, v)
+
+    def get_form(self):
+        """
+            If you want to use completely custom form for inline field, you can override
+            Flask-Admin form generation logic by overriding this method and returning your form.
+        """
+        return None
 
     def postprocess_form(self, form_class):
         """
@@ -48,13 +52,41 @@ class InlineFormAdmin(object):
 
                 class MyInlineForm(InlineFormAdmin):
                     def postprocess_form(self, form):
-                        form.value = wtf.TextField('value')
+                        form.value = TextField('value')
                         return form
 
                 class MyAdmin(ModelView):
                     inline_models = (MyInlineForm(ValueModel),)
         """
         return form_class
+
+    def on_model_change(self, form, model):
+        """
+            Called when inline model is about to be saved.
+
+            :param form:
+                Inline form
+            :param model:
+                Model
+        """
+        pass
+
+
+class InlineFormAdmin(InlineBaseFormAdmin):
+    """
+        Settings for inline form administration. Used by relational backends (SQLAlchemy, Peewee), where model
+        class can not be inherited from the parent model definition.
+    """
+    def __init__(self, model, **kwargs):
+        """
+            Constructor
+
+            :param model:
+                Model class
+        """
+        self.model = model
+
+        super(InlineFormAdmin, self).__init__(**kwargs)
 
 
 class ModelConverterBase(object):
@@ -93,8 +125,8 @@ class ModelConverterBase(object):
         return None
 
     def get_form(self, model, base_class=BaseForm,
-                only=None, exclude=None,
-                field_args=None):
+                 only=None, exclude=None,
+                 field_args=None):
         raise NotImplemented()
 
 
@@ -146,3 +178,11 @@ class InlineModelConverterBase(object):
             return p
 
         return None
+
+
+class FieldPlaceholder(object):
+    """
+        Field placeholder for model convertors.
+    """
+    def __init__(self, field):
+        self.field = field

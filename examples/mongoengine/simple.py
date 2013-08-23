@@ -2,7 +2,7 @@ import datetime
 
 from flask import Flask
 
-from flask.ext import admin
+from flask.ext import admin, wtf
 from flask.ext.mongoengine import MongoEngine
 from flask.ext.admin.contrib.mongoengine import ModelView
 
@@ -48,15 +48,25 @@ class Tag(db.Document):
 
 
 class Comment(db.EmbeddedDocument):
-    name = db.StringField(max_length=20)
+    name = db.StringField(max_length=20, required=True)
     value = db.StringField(max_length=20)
 
 
 class Post(db.Document):
-    name = db.StringField(max_length=20)
+    name = db.StringField(max_length=20, required=True)
     value = db.StringField(max_length=20)
     inner = db.ListField(db.EmbeddedDocumentField(Comment))
     lols = db.ListField(db.StringField(max_length=20))
+
+
+class File(db.Document):
+    name = db.StringField(max_length=20)
+    data = db.FileField()
+
+
+class Image(db.Document):
+    name = db.StringField(max_length=20)
+    image = db.ImageField(thumbnail_size=(100, 100, True))
 
 
 # Customized admin views
@@ -64,6 +74,10 @@ class UserView(ModelView):
     column_filters = ['name']
 
     column_searchable_list = ('name', 'password')
+
+
+class TodoView(ModelView):
+    column_filters = ['done']
 
 
 # Flask views
@@ -78,10 +92,11 @@ if __name__ == '__main__':
 
     # Add views
     admin.add_view(UserView(User))
-    admin.add_view(ModelView(Todo))
+    admin.add_view(TodoView(Todo))
     admin.add_view(ModelView(Tag))
     admin.add_view(ModelView(Post))
+    admin.add_view(ModelView(File))
+    admin.add_view(ModelView(Image))
 
     # Start app
-    app.debug = True
-    app.run('0.0.0.0', 8000)
+    app.run(debug=True)

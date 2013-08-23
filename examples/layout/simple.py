@@ -2,7 +2,7 @@ from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 
 from flask.ext import admin, wtf
-from flask.ext.admin.contrib.sqlamodel import ModelView
+from flask.ext.admin.contrib.sqla import ModelView
 
 # Create application
 app = Flask(__name__)
@@ -65,5 +65,4 @@ if __name__ == '__main__':
     db.create_all()
 
     # Start app
-    app.debug = True
-    app.run('0.0.0.0', 8000)
+    app.run(debug=True)

@@ -6,6 +6,7 @@ from peewee import (DateTimeField, DateField, TimeField,
 from wtfpeewee.orm import ModelConverter, model_form
 
 from flask.ext.admin import form
+from flask.ext.admin._compat import iteritems, itervalues
 from flask.ext.admin.model.form import InlineFormAdmin, InlineModelConverterBase
 from flask.ext.admin.model.fields import InlineModelFormField, InlineFieldList
 
@@ -13,14 +14,24 @@ from .tools import get_primary_key
 
 
 class InlineModelFormList(InlineFieldList):
-    def __init__(self, form, model, prop, **kwargs):
+    """
+        Customized inline model form list field.
+    """
+
+    form_field_type = InlineModelFormField
+    """
+        Form field type. Override to use custom field for each inline form
+    """
+
+    def __init__(self, form, model, prop, inline_view, **kwargs):
         self.form = form
         self.model = model
         self.prop = prop
+        self.inline_view = inline_view
 
         self._pk = get_primary_key(model)
 
-        super(InlineModelFormList, self).__init__(InlineModelFormField(form, self._pk), **kwargs)
+        super(InlineModelFormList, self).__init__(self.form_field_type(form, self._pk), **kwargs)
 
     def display_row_controls(self, field):
         return field.get_pk() is not None
@@ -63,6 +74,8 @@ class InlineModelFormList(InlineFieldList):
             # Force relation
             setattr(model, self.prop, model_id)
 
+            self.inline_view.on_model_change(field, model)
+
             model.save()
 
 
@@ -90,7 +103,44 @@ class CustomModelConverter(ModelConverter):
         return field.name, form.TimeField(**kwargs)
 
 
+def get_form(model, converter,
+             base_class=form.BaseForm,
+             only=None,
+             exclude=None,
+             field_args=None,
+             allow_pk=False,
+             extra_fields=None):
+    """
+        Create form from peewee model and contribute extra fields, if necessary
+    """
+    result = model_form(model,
+                        base_class=base_class,
+                        only=only,
+                        exclude=exclude,
+                        field_args=field_args,
+                        allow_pk=allow_pk,
+                        converter=converter)
+
+    if extra_fields:
+        for name, field in iteritems(extra_fields):
+            setattr(result, name, form.recreate_field(field))
+
+    return result
+
+
 class InlineModelConverter(InlineModelConverterBase):
+    """
+        Inline model form helper.
+    """
+
+    inline_field_list_type = InlineModelFormList
+    """
+        Used field list type.
+
+        If you want to do some custom rendering of inline field lists,
+        you can create your own wtforms field and use it instead
+    """
+
     def get_info(self, p):
         info = super(InlineModelConverter, self).get_info(p)
 
@@ -137,13 +187,16 @@ class InlineModelConverter(InlineModelConverterBase):
             exclude = ignore
 
         # Create field
-        child_form = model_form(info.model,
-                            base_class=form.BaseForm,
-                            only=info.form_columns,
-                            exclude=exclude,
-                            field_args=info.form_args,
-                            allow_pk=True,
-                            converter=converter)
+        child_form = info.get_form()
+
+        if child_form is None:
+            child_form = model_form(info.model,
+                                    base_class=form.BaseForm,
+                                    only=info.form_columns,
+                                    exclude=exclude,
+                                    field_args=info.form_args,
+                                    allow_pk=True,
+                                    converter=converter)
 
         prop_name = 'fa_%s' % model.__name__
 
@@ -151,10 +204,11 @@ class InlineModelConverter(InlineModelConverterBase):
 
         setattr(form_class,
                 prop_name,
-                InlineModelFormList(child_form,
-                                    info.model,
-                                    reverse_field.name,
-                                    label=label or info.model.__name__))
+                self.inline_field_list_type(child_form,
+                                            info.model,
+                                            reverse_field.name,
+                                            info,
+                                            label=label or info.model.__name__))
 
         setattr(field.rel_model,
                 prop_name,
@@ -164,6 +218,6 @@ class InlineModelConverter(InlineModelConverterBase):
 
 
 def save_inline(form, model):
-    for _, f in form._fields.iteritems():
+    for f in itervalues(form._fields):
         if f.type == 'InlineModelFormList':
             f.save_related(model)

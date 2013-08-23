@@ -2,6 +2,7 @@ import itertools
 
 from wtforms.fields import FieldList, FormField
 
+from flask.ext.admin._compat import iteritems
 from .widgets import InlineFieldListWidget, InlineFormWidget
 
 
@@ -22,9 +23,9 @@ class InlineFieldList(FieldList):
 
     def __call__(self, **kwargs):
         return self.widget(self,
-                    template=self.template,
-                    check=self.display_row_controls,
-                    **kwargs)
+                           template=self.template,
+                           check=self.display_row_controls,
+                           **kwargs)
 
     def display_row_controls(self, field):
         return True
@@ -39,6 +40,26 @@ class InlineFieldList(FieldList):
                 f._should_delete = key in formdata
 
         return res
+
+    def validate(self, form, extra_validators=tuple()):
+        """
+            Validate this FieldList.
+
+            Note that FieldList validation differs from normal field validation in
+            that FieldList validates all its enclosed fields first before running any
+            of its own validators.
+        """
+        self.errors = []
+
+        # Run validators on all entries within
+        for subfield in self.entries:
+            if not self.should_delete(subfield) and not subfield.validate(form):
+                self.errors.append(subfield.errors)
+
+        chain = itertools.chain(self.validators, extra_validators)
+        self._run_validation_chain(form, chain)
+
+        return len(self.errors) == 0
 
     def should_delete(self, field):
         return getattr(field, '_should_delete', False)
@@ -82,7 +103,7 @@ class InlineModelFormField(FormField):
         return getattr(self.form, self._pk).data
 
     def populate_obj(self, obj, name):
-        for name, field in self.form._fields.iteritems():
+        for name, field in iteritems(self.form._fields):
             if name != self._pk:
                 field.populate_obj(obj, name)
 

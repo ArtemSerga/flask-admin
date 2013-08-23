@@ -1,16 +1,33 @@
-def get_default_order(view):
+def prettify_name(name):
     """
-        Get default sort order from model view.
+        Prettify pythonic variable name.
 
-        Returns (field, desc) tuple.
+        For example, 'hello_world' will be converted to 'Hello World'
 
-        :param view:
-            View instance
+        :param name:
+            Name to prettify
     """
-    if view.column_default_sort:
-        if isinstance(view.column_default_sort, tuple):
-            return view.column_default_sort
+    return name.replace('_', ' ').title()
+
+def get_mdict_item_or_list(mdict, key):
+    """
+        Return the value for the given key of the multidict.
+
+        A werkzeug.datastructures.multidict can have a single
+        value or a list of items. If there is only one item,
+        return only this item, else the whole list as a tuple
+
+        :param mdict: Multidict to search for the key
+        :type mdict: werkzeug.datastructures.multidict
+        :param key: key to look for
+        :return: the value for the key or None if the Key has not be found
+    """
+    if hasattr(mdict, 'getlist'):
+        v = mdict.getlist(key)
+        if len(v) == 1:
+            return v[0]
+        elif len(v) == 0:
+            return None
         else:
-            return (view.column_default_sort, False)
-
+            return tuple(v)
     return None

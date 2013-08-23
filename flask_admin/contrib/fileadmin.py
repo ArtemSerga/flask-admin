@@ -1,21 +1,21 @@
 import os
 import os.path as op
 import platform
-import urlparse
 import re
 import shutil
 
 from operator import itemgetter
-
 from werkzeug import secure_filename
 
 from flask import flash, url_for, redirect, abort, request
 
+from wtforms import fields, validators
+
+from flask.ext.admin import form, helpers
+from flask.ext.admin._compat import urljoin
 from flask.ext.admin.base import BaseView, expose
 from flask.ext.admin.actions import action, ActionsMixin
 from flask.ext.admin.babel import gettext, lazy_gettext
-from flask.ext.admin import form
-from flask.ext import wtf
 
 
 class NameForm(form.BaseForm):
@@ -24,13 +24,13 @@ class NameForm(form.BaseForm):
 
         Validates if provided name is valid for *nix and Windows systems.
     """
-    name = wtf.TextField()
+    name = fields.TextField()
 
     regexp = re.compile(r'^(?!^(PRN|AUX|CLOCK\$|NUL|CON|COM\d|LPT\d|\..*)(\..+)?$)[^\x00-\x1f\\?*:\";|/]+$')
 
     def validate_name(self, field):
         if not self.regexp.match(field.data):
-            raise wtf.ValidationError(gettext('Invalid directory name'))
+            raise validators.ValidationError(gettext('Invalid directory name'))
 
 
 class UploadForm(form.BaseForm):
@@ -38,26 +38,26 @@ class UploadForm(form.BaseForm):
         File upload form. Works with FileAdmin instance to check if it is allowed
         to upload file with given extension.
     """
-    upload = wtf.FileField(lazy_gettext('File to upload'))
+    upload = fields.FileField(lazy_gettext('File to upload'))
 
     def __init__(self, admin):
         self.admin = admin
 
-        super(UploadForm, self).__init__()
+        super(UploadForm, self).__init__(helpers.get_form_data())
 
     def validate_upload(self, field):
-        if not self.upload.has_file():
-            raise wtf.ValidationError(gettext('File required.'))
+        if not self.upload.data:
+            raise validators.ValidationError(gettext('File required.'))
 
         filename = self.upload.data.filename
 
         if not self.admin.is_file_allowed(filename):
-            raise wtf.ValidationError(gettext('Invalid file type.'))
+            raise validators.ValidationError(gettext('Invalid file type.'))
 
 
 class EditForm(form.BaseForm):
-    content = wtf.TextAreaField(lazy_gettext('Content'),
-                                [wtf.validators.required()])
+    content = fields.TextAreaField(lazy_gettext('Content'),
+                                   (validators.required(),))
 
 
 class FileAdmin(BaseView, ActionsMixin):
@@ -181,13 +181,13 @@ class FileAdmin(BaseView, ActionsMixin):
         self._on_windows = platform.system() == 'Windows'
 
         # Convert allowed_extensions to set for quick validation
-        if (self.allowed_extensions
-            and not isinstance(self.allowed_extensions, set)):
+        if (self.allowed_extensions and
+            not isinstance(self.allowed_extensions, set)):
             self.allowed_extensions = set(self.allowed_extensions)
 
         # Convert editable_extensions to set for quick validation
-        if (self.editable_extensions
-            and not isinstance(self.editable_extensions, set)):
+        if (self.editable_extensions and
+            not isinstance(self.editable_extensions, set)):
             self.editable_extensions = set(self.editable_extensions)
 
         # Check if path exists
@@ -313,7 +313,7 @@ class FileAdmin(BaseView, ActionsMixin):
             return url_for(".edit", path=path)
         else:
             base_url = self.get_base_url()
-            return urlparse.urljoin(base_url, path)
+            return urljoin(base_url, path)
 
     def _normalize_path(self, path):
         """
@@ -418,6 +418,10 @@ class FileAdmin(BaseView, ActionsMixin):
         # Get path and verify if it is valid
         base_path, directory, path = self._normalize_path(path)
 
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
+
         # Get directory listing
         items = []
 
@@ -431,8 +435,10 @@ class FileAdmin(BaseView, ActionsMixin):
 
         for f in os.listdir(directory):
             fp = op.join(directory, f)
+            rel_path = op.join(path, f)
 
-            items.append((f, op.join(path, f), op.isdir(fp), op.getsize(fp)))
+            if self.is_accessible_path(rel_path):
+                items.append((f, rel_path, op.isdir(fp), op.getsize(fp)))
 
         # Sort by name
         items.sort(key=itemgetter(0))
@@ -475,8 +481,12 @@ class FileAdmin(BaseView, ActionsMixin):
             flash(gettext('File uploading is disabled.'), 'error')
             return redirect(self._get_dir_url('.index', path))
 
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
+
         form = UploadForm(self)
-        if form.validate_on_submit():
+        if helpers.validate_form_on_submit(form):
             filename = op.join(directory,
                                secure_filename(form.upload.data.filename))
 
@@ -488,7 +498,7 @@ class FileAdmin(BaseView, ActionsMixin):
                     self.save_file(filename, form.upload.data)
                     self.on_file_upload(directory, path, filename)
                     return redirect(self._get_dir_url('.index', path))
-                except Exception, ex:
+                except Exception as ex:
                     flash(gettext('Failed to save file: %(error)s', error=ex))
 
         return self.render(self.upload_template, form=form)
@@ -511,14 +521,18 @@ class FileAdmin(BaseView, ActionsMixin):
             flash(gettext('Directory creation is disabled.'), 'error')
             return redirect(dir_url)
 
-        form = NameForm(request.form)
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
 
-        if form.validate_on_submit():
+        form = NameForm(helpers.get_form_data())
+
+        if helpers.validate_form_on_submit(form):
             try:
                 os.mkdir(op.join(directory, form.name.data))
                 self.on_mkdir(directory, form.name.data)
                 return redirect(dir_url)
-            except Exception, ex:
+            except Exception as ex:
                 flash(gettext('Failed to create directory: %(error)s', ex), 'error')
 
         return self.render(self.mkdir_template,
@@ -544,6 +558,10 @@ class FileAdmin(BaseView, ActionsMixin):
             flash(gettext('Deletion is disabled.'))
             return redirect(return_url)
 
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
+
         if op.isdir(full_path):
             if not self.can_delete_dirs:
                 flash(gettext('Directory deletion is disabled.'))
@@ -553,14 +571,14 @@ class FileAdmin(BaseView, ActionsMixin):
                 shutil.rmtree(full_path)
                 self.on_directory_delete(full_path, path)
                 flash(gettext('Directory "%s" was successfully deleted.' % path))
-            except Exception, ex:
+            except Exception as ex:
                 flash(gettext('Failed to delete directory: %(error)s', error=ex), 'error')
         else:
             try:
                 os.remove(full_path)
                 self.on_file_delete(full_path, path)
                 flash(gettext('File "%(name)s" was successfully deleted.', name=path))
-            except Exception, ex:
+            except Exception as ex:
                 flash(gettext('Failed to delete file: %(name)s', name=ex), 'error')
 
         return redirect(return_url)
@@ -583,12 +601,16 @@ class FileAdmin(BaseView, ActionsMixin):
             flash(gettext('Renaming is disabled.'))
             return redirect(return_url)
 
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
+
         if not op.exists(full_path):
             flash(gettext('Path does not exist.'))
             return redirect(return_url)
 
-        form = NameForm(request.form, name=op.basename(path))
-        if form.validate_on_submit():
+        form = NameForm(helpers.get_form_data(), name=op.basename(path))
+        if helpers.validate_form_on_submit(form):
             try:
                 dir_base = op.dirname(full_path)
                 filename = secure_filename(form.name.data)
@@ -598,7 +620,7 @@ class FileAdmin(BaseView, ActionsMixin):
                 flash(gettext('Successfully renamed "%(src)s" to "%(dst)s"',
                       src=op.basename(path),
                       dst=filename))
-            except Exception, ex:
+            except Exception as ex:
                 flash(gettext('Failed to rename: %(error)s', error=ex), 'error')
 
             return redirect(return_url)
@@ -624,13 +646,18 @@ class FileAdmin(BaseView, ActionsMixin):
         path = path[0]
 
         base_path, full_path, path = self._normalize_path(path)
+
+        if not self.is_accessible_path(path):
+            flash(gettext(gettext('Permission denied.')))
+            return redirect(self._get_dir_url('.index'))
+
         dir_url = self._get_dir_url('.index', os.path.dirname(path))
         next_url = next_url or dir_url
 
-        form = EditForm()
+        form = EditForm(helpers.get_form_data())
         error = False
 
-        if request.method == 'POST':
+        if helpers.validate_form_on_submit(form):
             form.process(request.form, content='')
             if form.validate():
                 try:
@@ -655,7 +682,7 @@ class FileAdmin(BaseView, ActionsMixin):
                 error = True
             else:
                 try:
-                    content.decode('utf8')
+                    content = content.decode('utf8')
                 except UnicodeDecodeError:
                     flash(gettext("Cannot edit %(name)s.", name=path), 'error')
                     error = True
@@ -677,14 +704,19 @@ class FileAdmin(BaseView, ActionsMixin):
             lazy_gettext('Delete'),
             lazy_gettext('Are you sure you want to delete these files?'))
     def action_delete(self, items):
+        if not self.can_delete:
+            flash(gettext('File deletion is disabled.'), 'error')
+            return
+
         for path in items:
             base_path, full_path, path = self._normalize_path(path)
 
-            try:
-                os.remove(full_path)
-                flash(gettext('File "%(name)s" was successfully deleted.', name=path))
-            except Exception, ex:
-                flash(gettext('Failed to delete file: %(name)s', name=ex), 'error')
+            if self.is_accessible_path(path):
+                try:
+                    os.remove(full_path)
+                    flash(gettext('File "%(name)s" was successfully deleted.', name=path))
+                except Exception as ex:
+                    flash(gettext('Failed to delete file: %(name)s', name=ex), 'error')
 
     @action('edit', lazy_gettext('Edit'))
     def action_edit(self, items):
