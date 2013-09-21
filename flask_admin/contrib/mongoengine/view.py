@@ -18,7 +18,12 @@ from .form import get_form, CustomModelConverter
 from .typefmt import DEFAULT_FORMATTERS
 from .tools import parse_like_term
 from .helpers import format_error
-from .ajax import QueryAjaxModelLoader
+from .ajax import process_ajax_references, create_ajax_loader
+from .subdoc import convert_subdocuments
+
+
+# Set up logger
+log = logging.getLogger("flask-admin.mongo")
 
 
 SORTABLE_FIELDS = set((
@@ -98,7 +103,7 @@ class ModelView(BaseModelView):
         List of allowed search field types.
     """
 
-    form_subdocuments = {}
+    form_subdocuments = None
     """
         Subdocument configuration options.
 
@@ -198,6 +203,31 @@ class ModelView(BaseModelView):
         super(ModelView, self).__init__(model, name, category, endpoint, url)
 
         self._primary_key = self.scaffold_pk()
+
+    def _refresh_cache(self):
+        """
+            Refresh cache.
+        """
+        # Process subdocuments
+        if self.form_subdocuments is None:
+            self.form_subdocuments = {}
+
+        self._form_subdocuments = convert_subdocuments(self.form_subdocuments)
+
+        # Cache other properties
+        super(ModelView, self)._refresh_cache()
+
+    def _process_ajax_references(self):
+        """
+            AJAX endpoint is exposed by top-level admin view class, but
+            subdocuments might have AJAX references too.
+
+            This method will recursively go over subdocument configuration
+            and will precompute AJAX references for them ensuring that
+            subdocuments can also use AJAX to populate their ReferenceFields.
+        """
+        references = super(ModelView, self)._process_ajax_references()
+        return process_ajax_references(references, self)
 
     def _get_model_fields(self, model=None):
         """
@@ -338,29 +368,8 @@ class ModelView(BaseModelView):
         return form_class
 
     # AJAX foreignkey support
-    def _create_ajax_loader(self, name, fields):
-        prop = getattr(self.model, name, None)
-
-        if prop is None:
-            raise ValueError('Model %s does not have field %s.' % (self.model, name))
-
-        # TODO: Check for field
-
-        remote_model = prop.document_type
-        remote_fields = []
-
-        for field in fields:
-            if isinstance(field, string_types):
-                attr = getattr(remote_model, field, None)
-
-                if not attr:
-                    raise ValueError('%s.%s does not exist.' % (remote_model, field))
-
-                remote_fields.append(attr)
-            else:
-                remote_fields.append(field)
-
-        return QueryAjaxModelLoader(name, remote_model, remote_fields)
+    def _create_ajax_loader(self, name, opts):
+        return create_ajax_loader(self.model, name, name, opts)
 
     def get_query(self):
         """
@@ -473,7 +482,7 @@ class ModelView(BaseModelView):
             flash(gettext('Failed to create model. %(error)s',
                           error=format_error(ex)),
                   'error')
-            logging.exception('Failed to create model')
+            log.exception('Failed to create model')
             return False
         else:
             self.after_model_change(form, model, True)
@@ -500,7 +509,7 @@ class ModelView(BaseModelView):
             flash(gettext('Failed to update model. %(error)s',
                           error=format_error(ex)),
                   'error')
-            logging.exception('Failed to update model')
+            log.exception('Failed to update model')
             return False
         else:
             self.after_model_change(form, model, False)
@@ -525,7 +534,7 @@ class ModelView(BaseModelView):
             flash(gettext('Failed to delete model. %(error)s',
                           error=format_error(ex)),
                   'error')
-            logging.exception('Failed to delete model')
+            log.exception('Failed to delete model')
             return False
 
     # FileField access API

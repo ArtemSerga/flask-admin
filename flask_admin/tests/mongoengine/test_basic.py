@@ -375,7 +375,9 @@ def test_ajax_fk():
         Model2,
         url='view',
         form_ajax_refs={
-            'model1': ('test1', 'test2')
+            'model1': {
+                'fields': ('test1', 'test2')
+            }
         }
     )
     admin.add_view(view)
@@ -425,3 +427,50 @@ def test_ajax_fk():
     ok_(mdl.model1 is not None)
     eq_(mdl.model1.id, model.id)
     eq_(mdl.model1.test1, u'first')
+
+
+def test_nested_ajax_refs():
+    app, db, admin = setup()
+
+    # Check recursive
+    class Comment(db.Document):
+        name = db.StringField(max_length=20, required=True)
+        value = db.StringField(max_length=20)
+
+    class Nested(db.EmbeddedDocument):
+        name = db.StringField(max_length=20, required=True)
+        comment = db.ReferenceField(Comment)
+
+    class Model1(db.Document):
+        test1 = db.StringField(max_length=20)
+        nested = db.EmbeddedDocumentField(Nested)
+
+    view1 = CustomModelView(
+        Model1,
+        form_subdocuments = {
+            'nested': {
+                'form_ajax_refs': {
+                    'comment': {
+                        'fields': ['name']
+                    }
+                }
+            }
+        }
+    )
+
+    form = view1.create_form()
+    eq_(type(form.nested.form.comment).__name__, 'AjaxSelectField')
+    ok_('nested-comment' in view1._form_ajax_refs)
+
+
+def test_form_flat_choices():
+    app, db, admin = setup()
+
+    class Model(db.Document):
+        name = db.StringField(max_length=20, choices=('a', 'b', 'c'))
+
+    view = CustomModelView(Model)
+    admin.add_view(view)
+
+    form = view.create_form()
+    eq_(form.name.choices, [('a', 'a'), ('b', 'b'), ('c', 'c')])

@@ -33,7 +33,7 @@ class Todo(db.Document):
     text = db.StringField()
     done = db.BooleanField(default=False)
     pub_date = db.DateTimeField(default=datetime.datetime.now)
-    user = db.ReferenceField(User)
+    user = db.ReferenceField(User, required=False)
 
     # Required for administrative interface
     def __unicode__(self):
@@ -50,6 +50,7 @@ class Tag(db.Document):
 class Comment(db.EmbeddedDocument):
     name = db.StringField(max_length=20, required=True)
     value = db.StringField(max_length=20)
+    tag = db.ReferenceField(Tag)
 
 
 class Post(db.Document):
@@ -75,12 +76,20 @@ class UserView(ModelView):
 
     column_searchable_list = ('name', 'password')
 
+    form_ajax_refs = {
+        'tags': {
+            'fields': ('name',)
+        }
+    }
+
 
 class TodoView(ModelView):
     column_filters = ['done']
 
     form_ajax_refs = {
-        'user': ('name',)
+        'user': {
+            'fields': ['name']
+        }
     }
 
 

@@ -13,7 +13,10 @@ from flask.ext.admin.contrib.peewee import filters
 
 from .form import get_form, CustomModelConverter, InlineModelConverter, save_inline
 from .tools import get_primary_key, parse_like_term
-from .ajax import QueryAjaxModelLoader
+from .ajax import create_ajax_loader
+
+# Set up logger
+log = logging.getLogger("flask-admin.peewee")
 
 
 class ModelView(BaseModelView):
@@ -243,28 +246,8 @@ class ModelView(BaseModelView):
         return form_class
 
     # AJAX foreignkey support
-    def _create_ajax_loader(self, name, fields):
-        prop = getattr(self.model, name, None)
-
-        if prop is None:
-            raise ValueError('Model %s does not have field %s.' % (self.model, name))
-
-        # TODO: Check for field
-        remote_model = prop.rel_model
-        remote_fields = []
-
-        for field in fields:
-            if isinstance(field, string_types):
-                attr = getattr(remote_model, field, None)
-
-                if not attr:
-                    raise ValueError('%s.%s does not exist.' % (remote_model, field))
-
-                remote_fields.append(attr)
-            else:
-                remote_fields.append(field)
-
-        return QueryAjaxModelLoader(name, remote_model, remote_fields)
+    def _create_ajax_loader(self, name, options):
+        return create_ajax_loader(self.model, name, name, options)
 
     def _handle_join(self, query, field, joins):
         if field.model_class != self.model:
@@ -370,7 +353,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to create model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to create model')
+            log.exception('Failed to create model')
             return False
         else:
             self.after_model_change(form, model, True)
@@ -390,7 +373,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to update model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to update model')
+            log.exception('Failed to update model')
             return False
         else:
             self.after_model_change(form, model, False)
@@ -407,7 +390,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to delete model')
+            log.exception('Failed to delete model')
             return False
 
     # Default model actions

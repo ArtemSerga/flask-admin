@@ -5,16 +5,13 @@ from wtforms import fields, validators
 from flask.ext.mongoengine.wtf import orm, fields as mongo_fields
 
 from flask.ext.admin import form
-from flask.ext.admin.model.form import FieldPlaceholder, InlineBaseFormAdmin
+from flask.ext.admin.model.form import FieldPlaceholder
 from flask.ext.admin.model.fields import InlineFieldList, AjaxSelectField, AjaxSelectMultipleField
 from flask.ext.admin.model.widgets import InlineFormWidget
 from flask.ext.admin._compat import iteritems
 
 from .fields import ModelFormField, MongoFileField, MongoImageField
-
-
-class EmbeddedForm(InlineBaseFormAdmin):
-    pass
+from .subdoc import EmbeddedForm
 
 
 class CustomModelConverter(orm.ModelConverter):
@@ -39,18 +36,20 @@ class CustomModelConverter(orm.ModelConverter):
         return None
 
     def _get_subdocument_config(self, name):
-        config = getattr(self.view, 'form_subdocuments', {})
+        config = getattr(self.view, '_form_subdocuments', {})
 
         p = config.get(name)
         if not p:
             return EmbeddedForm()
 
-        if isinstance(p, dict):
-            return EmbeddedForm(**p)
-        elif isinstance(p, EmbeddedForm):
-            return p
+        return p
 
-        raise ValueError('Invalid subdocument type: expecting dict or instance of flask.ext.admin.contrib.mongoengine.EmbeddedForm, got %s' % type(p))
+    def _convert_choices(self, choices):
+        for c in choices:
+            if isinstance(c, tuple):
+                yield c
+            else:
+                yield (c, c)
 
     def clone_converter(self, view):
         return self.__class__(view)
@@ -79,7 +78,7 @@ class CustomModelConverter(orm.ModelConverter):
         ftype = type(field).__name__
 
         if field.choices:
-            kwargs['choices'] = field.choices
+            kwargs['choices'] = list(self._convert_choices(field.choices))
 
             if ftype in self.converters:
                 kwargs["coerce"] = self.coerce(ftype)
@@ -110,8 +109,13 @@ class CustomModelConverter(orm.ModelConverter):
             raise ValueError('ListField "%s" must have field specified for model %s' % (field.name, model))
 
         if isinstance(field.field, ReferenceField):
+            loader = getattr(self.view, '_form_ajax_refs', {}).get(field.name)
+            if loader:
+                return AjaxSelectMultipleField(loader, **kwargs)
+
             kwargs['widget'] = form.Select2Widget(multiple=True)
 
+            # TODO: Support AJAX multi-select
             doc_type = field.field.document_type
             return mongo_fields.ModelSelectMultipleField(model=doc_type, **kwargs)
 
@@ -158,7 +162,7 @@ class CustomModelConverter(orm.ModelConverter):
     def conv_Reference(self, model, field, kwargs):
         kwargs['allow_blank'] = not field.required
 
-        loader = self.view._form_ajax_refs.get(field.name)
+        loader = getattr(self.view, '_form_ajax_refs', {}).get(field.name)
         if loader:
             return AjaxSelectField(loader, **kwargs)
 

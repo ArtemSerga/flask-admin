@@ -15,7 +15,11 @@ from flask.ext.admin._backwards import ObsoleteAttr
 from flask.ext.admin.contrib.sqla import form, filters, tools
 from .typefmt import DEFAULT_FORMATTERS
 from .tools import is_inherited_primary_key, get_column_for_current_model, get_query_for_ids
-from .ajax import QueryAjaxModelLoader
+from .ajax import create_ajax_loader
+
+
+# Set up logger
+log = logging.getLogger("flask-admin.sqla")
 
 
 
@@ -27,13 +31,6 @@ class ModelView(BaseModelView):
 
             admin = Admin()
             admin.add_view(ModelView(User, db.session))
-    """
-
-    column_hide_backrefs = ObsoleteAttr('column_hide_backrefs',
-                                        'hide_backrefs',
-                                        True)
-    """
-        Set this to False if you want to see multiselect for model backrefs.
     """
 
     column_auto_select_related = ObsoleteAttr('column_auto_select_related',
@@ -323,7 +320,7 @@ class ModelView(BaseModelView):
                     if is_inherited_primary_key(p):
                         column = get_column_for_current_model(p)
                     else:
-                        raise TypeError('Can not convert multiple-column properties (%s.%s)' % (model, p.key))
+                        raise TypeError('Can not convert multiple-column properties (%s.%s)' % (self.model, p.key))
                 else:
                     # Grab column
                     column = p.columns[0]
@@ -565,9 +562,7 @@ class ModelView(BaseModelView):
                                                             self.model_form_converter)
 
         for m in self.inline_models:
-            form_class = inline_converter.contribute(self.model,
-                                                     form_class,
-                                                     m)
+            form_class = inline_converter.contribute(self.model, form_class, m)
 
         return form_class
 
@@ -599,31 +594,8 @@ class ModelView(BaseModelView):
         return joined
 
     # AJAX foreignkey support
-    def _create_ajax_loader(self, name, fields):
-        attr = getattr(self.model, name, None)
-
-        if attr is None:
-            raise ValueError('Model %s does not have field %s.' % (self.model, name))
-
-        if not hasattr(attr, 'property') or not hasattr(attr.property, 'direction'):
-            raise ValueError('%s.%s is not a relation.' % (self.model, name))
-
-        remote_model = attr.prop.mapper.class_
-        remote_fields = []
-
-        for field in fields:
-            if isinstance(field, string_types):
-                attr = getattr(remote_model, field, None)
-
-                if not attr:
-                    raise ValueError('%s.%s does not exist.' % (remote_model, field))
-
-                remote_fields.append(attr)
-            else:
-                # TODO: Figure out if it is valid SQLAlchemy property?
-                remote_fields.append(field)
-
-        return QueryAjaxModelLoader(name, self.session, remote_model, remote_fields)
+    def _create_ajax_loader(self, name, options):
+        return create_ajax_loader(self.model, self.session, name, name, options)
 
     # Database-related API
     def get_query(self):
@@ -828,7 +800,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to create model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to create model')
+            log.exception('Failed to create model')
             self.session.rollback()
             return False
         else:
@@ -854,7 +826,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to update model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to update model')
+            log.exception('Failed to update model')
             self.session.rollback()
 
             return False
@@ -881,7 +853,7 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)), 'error')
-            logging.exception('Failed to delete model')
+            log.exception('Failed to delete model')
             self.session.rollback()
             return False
 
