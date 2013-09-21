@@ -3,7 +3,7 @@ import logging
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import desc
-from sqlalchemy import or_, Column, func
+from sqlalchemy import or_, Column, func, String
 
 from flask.ext.admin._compat import string_types
 from flask import flash, request
@@ -930,12 +930,19 @@ class ModelView(BaseModelView):
                 data = {}
                 q = self.get_query().filter(model_pk.in_(ids))
                 for column, value in request.form.items():
-                    if value == '__None':
-                        value = None
                     if column in self.form_multiple_update_columns:
                         attr = getattr(self.model, column)
+                        # Format column
                         if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
                             column += '_id'
+                        # Format value
+                        model_column = self.model.__table__.columns[column]
+                        if (value == '__None' or (
+                            not isinstance(model_column, String)
+                            and value == ''
+                            and model_column.nullable
+                        )):
+                            value = None
                         data[column] = value
                 if data:
                     count = q.update(data, synchronize_session=False)
