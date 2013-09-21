@@ -84,6 +84,8 @@ class ActionsMixin(object):
 
         for act in self._actions:
             name, text = act
+            if name == 'multiple_update' and not self.form_multiple_update_columns:
+                continue
 
             if self.is_action_allowed(name):
                 actions.append((name, text_type(text)))
@@ -113,7 +115,9 @@ class ActionsMixin(object):
             if response is not None:
                 return response
 
-        if not return_view:
+        if 'url' in request.form:
+            url = request.form['url']
+        elif not return_view:
             url = url_for('.' + self._default_view)
         else:
             url = url_for('.' + return_view)

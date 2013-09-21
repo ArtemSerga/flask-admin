@@ -4,8 +4,10 @@ var AdminFilters = function(element, filters_element, operations, options, types
     var lastCount = 0;
 
     function getCount(name) {
-        var idx = name.indexOf('_');
-        return parseInt(name.substr(3, idx - 3));
+        if (name) {
+            var idx = name.indexOf('_');
+            return parseInt(name.substr(3, idx - 3));
+        }
     }
 
     function changeOperation() {

@@ -26,7 +26,9 @@ class AdminModelConverter(ModelConverterBase):
     """
         SQLAlchemy model to form converter
     """
-    def __init__(self, session, view):
+    chosen_enabled = True    
+    
+    def __init__(self, session, view, chosen_enabled=chosen_enabled):
         super(AdminModelConverter, self).__init__()
 
         self.session = session
@@ -139,6 +141,47 @@ class AdminModelConverter(ModelConverterBase):
 
         # Check if it is relation or property
         if hasattr(prop, 'direction'):
+            remote_model = prop.mapper.class_
+            local_column = prop.local_remote_pairs[0][0]
+
+            kwargs['label'] = self._get_label(prop.key, kwargs)
+            kwargs['description'] = self._get_description(prop.key, kwargs)
+
+            if local_column.nullable:
+                kwargs['validators'].append(validators.Optional())
+            elif prop.direction.name != 'MANYTOMANY':
+                kwargs['validators'].append(validators.InputRequired())
+
+            # Override field type if necessary
+            override = self._get_field_override(prop.key)
+            if override:
+                return override(**kwargs)
+
+            # Contribute model-related parameters
+            if 'allow_blank' not in kwargs:
+                kwargs['allow_blank'] = local_column.nullable
+            if 'query_factory' not in kwargs:
+                kwargs['query_factory'] = lambda: self.session.query(remote_model)
+
+            if prop.direction.name == 'MANYTOONE':
+                if self.chosen_enabled:
+                    return QuerySelectField(widget=form.Select2Widget(),
+                                            **kwargs)
+                else:
+                    return QuerySelectField(**kwargs)
+
+            elif prop.direction.name == 'ONETOMANY':
+                # Skip backrefs
+                if not local_column.foreign_keys and getattr(self.view, 'column_hide_backrefs', False):
+                    return None
+
+                return QuerySelectMultipleField(
+                                widget=form.Select2Widget(multiple=True),
+                                **kwargs)
+            elif prop.direction.name == 'MANYTOMANY':
+                return QuerySelectMultipleField(
+                                widget=form.Select2Widget(multiple=True),
+                                **kwargs)
             return self._convert_relation(prop, kwargs)
         else:
             # Ignore pk/fk

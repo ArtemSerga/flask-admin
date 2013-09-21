@@ -15,13 +15,8 @@ var AdminModelActions = function(actionErrorMessage, actionConfirmations) {
                 return false;
 
         // Update hidden form and submit it
-        var form = $('#action_form');
+        var form = $('.form-horizontal');
         $('#action', form).val(name);
-
-        $('input.action-checkbox', form).remove();
-        $('input.action-checkbox:checked').each(function() {
-            form.append($(this).clone());
-        });
 
         form.submit();
 

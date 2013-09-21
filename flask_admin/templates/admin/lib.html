@@ -75,7 +75,7 @@
 {%- endmacro %}
 
 {# ---------------------- Forms -------------------------- #}
-{% macro render_field(form, field, set_focus=False, kwargs={}) %}
+{% macro render_field(form, field, set_focus=False, kwargs={}, enable_disabling=False) %}
   {% set direct_error = h.is_field_error(field.errors) %}
   <div class="control-group{{ ' error' if direct_error else '' }}">
     <div class="control-label">
@@ -87,11 +87,25 @@
       {% endif %}
     </div>
     <div class="controls">
+      {% if enable_disabling %}
+        <div class="btn-group" style="float: left; margin-right: 10px" data-toggle="buttons-radio">
+            <button data-role="enable-formfield" class="btn">On</button>
+            <button data-role="disable-formfield" class="btn active">Off</button>
+        </div>
+      {% endif %}
     <div>
       {% if set_focus %}
-      {{ field(autofocus='autofocus', **kwargs)|safe }}
+        {% if enable_disabling %}
+            {{ field(autofocus='autofocus', disabled='disabled', **kwargs)|safe }}
+        {% else %}
+            {{ field(autofocus='autofocus', **kwargs)|safe }}
+        {% endif %}
       {% else %}
-      {{ field(**kwargs)|safe }}
+        {% if enable_disabling %}
+          {{ field(disabled='disabled', **kwargs)|safe }}
+        {% else %}
+          {{ field(**kwargs)|safe }}
+        {% endif %}
       {% endif %}
     </div>
     {% if field.description %}
@@ -108,7 +122,7 @@
   </div>
 {% endmacro %}
 
-{% macro render_form_fields(form, set_focus=True, widget_args={}) %}
+{% macro render_form_fields(form, set_focus=True, widget_args={}, enable_disabling=False) %}
     {% if form.hidden_tag is defined %}
         {{ form.hidden_tag() }}
     {% else %}
@@ -119,12 +133,12 @@
 
     {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
       {% set kwargs = widget_args.get(f.name, {}) %}
-      {{ render_field(form, f, not loop.index0 and set_focus, kwargs) }}
+      {{ render_field(form, f, not loop.index0 and set_focus, kwargs, enable_disabling) }}
     {% endfor %}
 {% endmacro %}
 
-{% macro form_tag(form=None) %}
-    <form action="" method="POST" class="form-horizontal" enctype="multipart/form-data">
+{% macro form_tag(form=None, action=None) %}
+    <form action="{{ action if action else '' }}" method="POST" class="form-horizontal"{% if form and form.has_file_field %} enctype="multipart/form-data"{% endif %}>
       <fieldset>
         {{ caller() }}
       </fieldset>

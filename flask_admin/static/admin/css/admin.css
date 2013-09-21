@@ -1,8 +1,19 @@
 /* Global styles */
+
 body
 {
-    padding-top: 4px;
+    padding-top: 45px;
 }
+
+.navbar-inner
+{
+    padding: 0 50px !important;
+}
+.nav-tabs, .nav-pills
+{
+    margin: 0 0 5px 0;
+}
+
 
 /* Form customizations */
 form.icon {
@@ -35,6 +46,9 @@ form.search-form a.clear i {
 table.filters {
     border-collapse: none;
     border-spacing: 4px;
+}
+#filter_form{
+    margin: 2px 0;
 }
 
 .filters input
@@ -105,4 +119,9 @@ table.filters {
 /* Patch Select2 */
 .select2-results li {
     min-height: 24px !important;
+}
+
+td, th
+{
+    padding: 2px 4px !important;
 }

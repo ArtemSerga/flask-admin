@@ -5,6 +5,7 @@
 
 {% block head %}
     {{ super() }}
+    <link href="{{ url_for('admin.static', filename='overlay/overlay.css') }}" rel="stylesheet">
     <link href="{{ url_for('admin.static', filename='select2/select2.css') }}" rel="stylesheet">
     <link href="{{ url_for('admin.static', filename='datepicker/bootstrap-datepicker.css') }}" rel="stylesheet">
 {% endblock %}
@@ -47,6 +48,7 @@
     {% endif %}
 
     {% block model_list_table %}
+    {% call lib.form_tag(action=multiple_update_action) %}
     <table class="table table-striped table-bordered model-list">
         <thead>
             <tr>
@@ -131,10 +133,26 @@
         </tr>
         {% endfor %}
     </table>
-    {{ lib.pager(page, num_pages, pager_url) }}
+
+    {# Multiple update form container #}
+    {% if multiple_update_form %}
+        <div class="overlay" id="multiple_update">
+            <fieldset>
+                {{ lib.render_form_fields(multiple_update_form, enable_disabling=True) }}
+                {{ lib.render_form_buttons(cancel_url=None) }}
+            </fieldset>
+        </div>
+    {% endif %}
+    {% endcall %}
     {% endblock %}
 
-    {{ actionlib.form(actions, url_for('.action_view')) }}
+    {{ lib.pager(page, num_pages, pager_url) }}
+
+    {% if actions %}
+      <input type="hidden" name="url" value="{{ request.url }}" />
+      <input type="hidden" id="action" name="action" />
+    {% endif %}
+
 {% endblock %}
 
 {% block tail %}
@@ -142,6 +160,7 @@
     <script src="{{ url_for('admin.static', filename='datepicker/bootstrap-datepicker.js') }}"></script>
     <script src="{{ url_for('admin.static', filename='admin/js/form.js') }}"></script>
     <script src="{{ url_for('admin.static', filename='admin/js/filters.js') }}"></script>
+    <script src="{{ url_for('admin.static', filename='js/jquery.tools.min.js') }}"></script>
 
     {{ actionlib.script(_gettext('Please select at least one model.'),
                       actions,
@@ -160,6 +179,30 @@
                     {{ filter_data|tojson|safe }},
                     {{ filter_types|tojson|safe }}
                 );
+            {% endif %}
+
+            {# Bulk update overlay #}
+            {% if multiple_update_form %}
+                $(".overlay-trigger").overlay({effect: 'apple'});
+
+                $('[data-role=disable-formfield]').click(function() {
+                    $(this).parents('.btn-group').find('[data-role="enable-formfield"]').removeClass('active');
+                    $(this).addClass('active').parents('.controls').find('input').attr('disabled', 'disabled');
+                    $(this).addClass('active').parents('.controls').find('select').attr('disabled', 'disabled');
+                    return false;
+                });
+                $('[data-role=enable-formfield]').click(function() {
+                    $(this).parents('.btn-group').find('[data-role="disable-formfield"]').removeClass('active');
+                    $(this).addClass('active').parents('.controls').find('input').removeAttr('disabled');
+                    $(this).addClass('active').parents('.controls').find('select').removeAttr('disabled');
+                    return false;
+                });
+
+                {% if multiple_update_form %}
+                  $("#multiple_update input:submit").click(function() {
+                      return modelActions.execute('multiple_update');
+                  });
+                {% endif %}
             {% endif %}
         })(jQuery);
     </script>

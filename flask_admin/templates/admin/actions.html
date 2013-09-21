@@ -1,20 +1,20 @@
 {% macro dropdown(actions, btn_class='dropdown-toggle') -%}
-    <a class="{{ btn_class }}" data-toggle="dropdown" href="javascript:void(0)">{{ _gettext('With selected') }}<b class="caret"></b></a>
+    <a class="{{ btn_class }}" data-toggle="dropdown" href="#">
+        {{ _gettext('With selected') }}<b class="caret"></b>
+    </a>
     <ul class="dropdown-menu">
         {% for p in actions %}
         <li>
-            <a href="javascript:void(0)" onclick="return modelActions.execute('{{ p[0] }}');">{{ _gettext(p[1]) }}</a>
+            {% if p[0] == 'multiple_update' %}
+                <a class="overlay-trigger" rel="#{{ p[0] }}" href="#">{{ _gettext(p[1]) }}</a>
+            {% else %}
+                <a id="{{ p[0] }}" href="javascript:void(0)" onclick="return modelActions.execute('{{ p[0] }}');">
+                    {{ _gettext(p[1]) }}
+                </a>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>
-{% endmacro %}
-
-{% macro form(actions, url) %}
-    {% if actions %}
-    <form id="action_form" action="{{ url }}" method="POST" style="display: none">
-        <input type="hidden" id="action" name="action" />
-    </form>
-    {% endif %}
 {% endmacro %}
 
 {% macro script(message, actions, actions_confirmation) %}

@@ -20,8 +20,9 @@
   </head>
   <body>
     {% block page_body %}
-    <div class="container">
-      <div class="navbar">
+    <div class="container-fluid">
+{#      <div class="navbar navbar-inverse navbar-fixed-top">#}
+      <div class="navbar navbar-inverse navbar-fixed-top">
         <div class="navbar-inner">
           {% block brand %}
           <span class="brand">{{ admin_view.admin.name }}</span>
@@ -44,6 +45,7 @@
       {{ layout.messages() }}
 
       {% block body %}{% endblock %}
+
     </div>
     {% endblock %}
 
