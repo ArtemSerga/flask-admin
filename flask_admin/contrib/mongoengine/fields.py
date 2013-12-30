@@ -6,6 +6,13 @@ from wtforms.fields.core import _unset_value
 from . import widgets
 
 
+def is_empty(file_object):
+    file_object.seek(0)
+    first_char = file_object.read(1)
+    file_object.seek(0)
+    return not bool(first_char)
+
+
 class ModelFormField(fields.FormField):
     """
         Customized ModelFormField for MongoEngine EmbeddedDocuments.
@@ -28,6 +35,9 @@ class ModelFormField(fields.FormField):
 
 
 class MongoFileField(fields.FileField):
+    """
+        GridFS file field.
+    """
     widget = widgets.MongoFileInput()
 
     def __init__(self, label=None, validators=None, **kwargs):
@@ -51,7 +61,7 @@ class MongoFileField(fields.FileField):
                 field.delete()
                 return
 
-            if isinstance(self.data, FileStorage):
+            if isinstance(self.data, FileStorage) and not is_empty(self.data.stream):
                 if not field.grid_id:
                     func = field.put
                 else:
@@ -63,4 +73,8 @@ class MongoFileField(fields.FileField):
 
 
 class MongoImageField(MongoFileField):
+    """
+        GridFS image field.
+    """
+
     widget = widgets.MongoImageInput()

@@ -2,8 +2,9 @@ import datetime
 
 from flask import Flask
 
-from flask.ext import admin, wtf
+from flask.ext import admin
 from flask.ext.mongoengine import MongoEngine
+from flask.ext.admin.form import rules
 from flask.ext.admin.contrib.mongoengine import ModelView
 
 # Create application
@@ -93,6 +94,23 @@ class TodoView(ModelView):
     }
 
 
+class PostView(ModelView):
+    form_subdocuments = {
+        'inner': {
+            'form_subdocuments': {
+                None: {
+                    # Add <hr> at the end of the form
+                    'form_rules': ('name', 'tag', 'value', rules.HTML('<hr>')),
+                    'form_widget_args': {
+                        'name': {
+                            'style': 'color: red'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 # Flask views
 @app.route('/')
 def index():
@@ -107,7 +125,7 @@ if __name__ == '__main__':
     admin.add_view(UserView(User))
     admin.add_view(TodoView(Todo))
     admin.add_view(ModelView(Tag))
-    admin.add_view(ModelView(Post))
+    admin.add_view(PostView(Post))
     admin.add_view(ModelView(File))
     admin.add_view(ModelView(Image))
 

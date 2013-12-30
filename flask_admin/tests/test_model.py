@@ -2,6 +2,9 @@ from nose.tools import eq_, ok_
 
 from flask import Flask
 
+from werkzeug.wsgi import DispatcherMiddleware
+from werkzeug.test import Client
+
 from wtforms import fields
 
 from flask.ext.admin import Admin, form
@@ -175,6 +178,21 @@ def test_mockview():
     eq_(rv.status_code, 302)
     eq_(rv.headers['location'], 'http://localhost/admin/modelview/')
 
+    # Create a dispatched application to test that edit view's "save and
+    # continue" functionality works when app is not located at root
+    dummy_app = Flask('dummy_app')
+    dispatched_app = DispatcherMiddleware(dummy_app, {'/dispatched': app})
+    dispatched_client = Client(dispatched_app)
+
+    app_iter, status, headers = dispatched_client.post(
+        '/dispatched/admin/modelview/edit/?id=3',
+        data=dict(col1='another test!', col2='test@', col3='test#', _continue_editing='True'))
+
+    eq_(status, '302 FOUND')
+    eq_(headers['Location'], 'http://localhost/dispatched/admin/modelview/edit/?id=3')
+    model = view.updated_models.pop()
+    eq_(model.col1, 'another test!')
+
 
 def test_permissions():
     app, admin = setup()
@@ -311,3 +329,11 @@ def test_custom_form():
     eq_(view._edit_form_class, TestForm)
 
     ok_(not hasattr(view._create_form_class, 'col1'))
+
+
+def check_class_name():
+    class DummyView(MockModelView):
+        pass
+
+    view = DummyView(Model)
+    eq_(view.name, 'Dummy View')

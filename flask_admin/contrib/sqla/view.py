@@ -3,7 +3,7 @@ import logging
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import desc
-from sqlalchemy import or_, Column, func, String
+from sqlalchemy import Column, Boolean, String, func, or_
 
 from flask.ext.admin._compat import string_types
 from flask import flash, request
@@ -20,7 +20,6 @@ from .ajax import create_ajax_loader
 
 # Set up logger
 log = logging.getLogger("flask-admin.sqla")
-
 
 
 class ModelView(BaseModelView):
@@ -228,6 +227,16 @@ class ModelView(BaseModelView):
                 form_choices = {'my_form_field': [
                     ('db_value', 'display_value'),
                 ]
+    """
+
+    form_optional_types = (Boolean,)
+    """
+        List of field types that should be optional if column is not nullable.
+
+        Example::
+
+            class MyModelView(BaseModelView):
+                form_optional_types = (Boolean, Unicode)
     """
 
     def __init__(self, model, session,
@@ -647,7 +656,7 @@ class ModelView(BaseModelView):
                 table = mapper.tables[0]
 
                 if self._need_join(table) and table.name not in joins:
-                    query = query.join(table)
+                    query = query.outerjoin(table)
                     joins.add(table.name)
         elif isinstance(sort_field, Column):
             pass

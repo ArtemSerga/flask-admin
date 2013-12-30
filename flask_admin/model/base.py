@@ -7,7 +7,7 @@ from jinja2 import contextfunction
 from flask.ext.admin.babel import gettext
 
 from flask.ext.admin.base import BaseView, expose
-from flask.ext.admin.form import BaseForm
+from flask.ext.admin.form import BaseForm, FormOpts, rules
 from flask.ext.admin.model import filters, typefmt
 from flask.ext.admin.actions import ActionsMixin
 from flask.ext.admin.helpers import get_form_data, validate_form_on_submit
@@ -408,6 +408,44 @@ class BaseModelView(BaseView, ActionsMixin):
         in your `AjaxModelLoader` class.
     """
 
+    form_rules = None
+    """
+        List of rendering rules for model creation form.
+
+        This property changed default form rendering behavior and makes possible to rearrange order
+        of rendered fields, add some text between fields, group them, etc. If not set, will use
+        default Flask-Admin form rendering logic.
+
+        Here's simple example which illustrates how to use::
+
+            from flask.ext.admin.form import rules
+
+            class MyModelView(ModelView):
+                form_rules = [
+                    # Define field set with header text and four fields
+                    rules.FieldSet(('first_name', 'last_name', 'email', 'phone'), 'User'),
+                    # ... and it is just shortcut for:
+                    rules.Header('User'),
+                    rules.Field('first_name'),
+                    rules.Field('last_name'),
+                    # ...
+                    # It is possible to create custom rule blocks:
+                    MyBlock('Hello World'),
+                    # It is possible to call macros from current context
+                    rules.Macro('my_macro', foobar='baz')
+                ]
+    """
+
+    form_edit_rules = None
+    """
+        Customized rules for the edit form. Override `form_rules` if present.
+    """
+
+    form_create_rules = None
+    """
+        Customized rules for the create form. Override `form_rules` if present.
+    """
+
     # Actions
     action_disallowed_list = ObsoleteAttr('action_disallowed_list',
                                           'disallowed_actions',
@@ -450,7 +488,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         # If name not provided, it is model name
         if name is None:
-            name = '%s' % self.prettify_name(model.__name__)
+            name = '%s' % self._prettify_class_name(model.__name__)
 
         # If endpoint not provided, it is model name + 'view'
         if endpoint is None:
@@ -531,6 +569,26 @@ class BaseModelView(BaseView, ActionsMixin):
             self._filter_groups = None
             self._filter_types = None
 
+        # Form rendering rules
+        if self.form_create_rules:
+            self._form_create_rules = rules.RuleSet(self, self.form_create_rules)
+        else:
+            self._form_create_rules = None
+
+        if self.form_edit_rules:
+            self._form_edit_rules = rules.RuleSet(self, self.form_edit_rules)
+        else:
+            self._form_edit_rules = None
+
+        if self.form_rules:
+            form_rules = rules.RuleSet(self, self.form_rules)
+
+            if not self._form_create_rules:
+                self._form_create_rules = form_rules
+
+            if not self._form_edit_rules:
+                self._form_edit_rules = form_rules
+
     # Primary key
     def get_pk_value(self, model):
         """
@@ -561,7 +619,7 @@ class BaseModelView(BaseView, ActionsMixin):
         if self.column_labels and field in self.column_labels:
             return self.column_labels[field]
         else:
-            return self.prettify_name(field)
+            return self._prettify_name(field)
 
     def get_list_columns(self):
         """
@@ -881,7 +939,7 @@ class BaseModelView(BaseView, ActionsMixin):
         raise NotImplemented()
 
     # Various helpers
-    def prettify_name(self, name):
+    def _prettify_name(self, name):
         """
             Prettify pythonic variable name.
 
@@ -1177,9 +1235,12 @@ class BaseModelView(BaseView, ActionsMixin):
                 else:
                     return redirect(return_url)
 
+        form_opts = FormOpts(widget_args=self.form_widget_args,
+                             form_rules=self._form_create_rules)
+
         return self.render(self.create_template,
                            form=form,
-                           form_widget_args=self.form_widget_args,
+                           form_opts=form_opts,
                            return_url=return_url)
 
     @expose('/edit/', methods=('GET', 'POST'))
@@ -1207,14 +1268,17 @@ class BaseModelView(BaseView, ActionsMixin):
             if self.update_model(form, model):
                 if '_continue_editing' in request.form:
                     flash(gettext('Model was successfully saved.'))
-                    return redirect(request.full_path)
+                    return redirect(request.url)
                 else:
                     return redirect(return_url)
+
+        form_opts = FormOpts(widget_args=self.form_widget_args,
+                             form_rules=self._form_create_rules)
 
         return self.render(self.edit_template,
                            model=model,
                            form=form,
-                           form_widget_args=self.form_widget_args,
+                           form_opts=form_opts,
                            return_url=return_url)
 
     @expose('/delete/', methods=('POST',))

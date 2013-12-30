@@ -86,12 +86,10 @@ class AdminModelConverter(ModelConverterBase):
             kwargs['query_factory'] = lambda: self.session.query(remote_model)
 
         if 'widget' not in kwargs:
-            if prop.direction.name == 'MANYTOONE':
+            if multiple:
+                kwargs['widget'] = form.Select2Widget(multiple=True)
+            else:
                 kwargs['widget'] = form.Select2Widget()
-            elif prop.direction.name == 'ONETOMANY':
-                kwargs['widget'] = form.Select2Widget(multiple=True)
-            elif prop.direction.name == 'MANYTOMANY':
-                kwargs['widget'] = form.Select2Widget(multiple=True)
 
         if multiple:
             return QuerySelectMultipleField(**kwargs)
@@ -100,26 +98,31 @@ class AdminModelConverter(ModelConverterBase):
 
     def _convert_relation(self, prop, kwargs):
         remote_model = prop.mapper.class_
-        local_column = prop.local_remote_pairs[0][0]
+        column = prop.local_remote_pairs[0][0]
+
+        # If this relation points to local column that's not foreign key, assume
+        # that it is backref and use remote column data
+        if not column.foreign_keys:
+            column = prop.local_remote_pairs[0][1]
 
         kwargs['label'] = self._get_label(prop.key, kwargs)
         kwargs['description'] = self._get_description(prop.key, kwargs)
 
-        if local_column.nullable:
+        if column.nullable:
             kwargs['validators'].append(validators.Optional())
         elif prop.direction.name != 'MANYTOMANY':
             kwargs['validators'].append(validators.InputRequired())
 
         # Contribute model-related parameters
         if 'allow_blank' not in kwargs:
-            kwargs['allow_blank'] = local_column.nullable
+            kwargs['allow_blank'] = column.nullable
 
         # Override field type if necessary
         override = self._get_field_override(prop.key)
         if override:
             return override(**kwargs)
 
-        if prop.direction.name == 'MANYTOONE':
+        if prop.direction.name == 'MANYTOONE' or not prop.uselist:
             return self._model_select_field(prop, False, remote_model, **kwargs)
         elif prop.direction.name == 'ONETOMANY':
             return self._model_select_field(prop, True, remote_model, **kwargs)
@@ -196,8 +199,10 @@ class AdminModelConverter(ModelConverterBase):
                     # Grab column
                     column = prop.columns[0]
 
-                # Do not display foreign keys - use relations
-                if column.foreign_keys:
+                form_columns = getattr(self.view, 'form_columns', None) or ()
+
+                # Do not display foreign keys - use relations, except when explicitly instructed
+                if column.foreign_keys and prop.key not in form_columns:
                     return None
 
                 # Only display "real" columns
@@ -212,11 +217,6 @@ class AdminModelConverter(ModelConverterBase):
                         return fields.HiddenField()
                     else:
                         # By default, don't show primary keys either
-                        form_columns = getattr(self.view, 'form_columns', None)
-
-                        if form_columns is None:
-                            return None
-
                         # If PK is not explicitly allowed, ignore it
                         if prop.key not in form_columns:
                             return None
@@ -234,7 +234,9 @@ class AdminModelConverter(ModelConverterBase):
                                                        model,
                                                        column))
 
-                if not column.nullable and not isinstance(column.type, Boolean):
+                optional_types = getattr(self.view, 'form_optional_types', (Boolean,))
+
+                if not column.nullable and not isinstance(column.type, optional_types):
                     kwargs['validators'].append(validators.InputRequired())
 
                 # Apply label and description if it isn't inline form field
@@ -581,7 +583,7 @@ class InlineModelConverter(InlineModelConverterBase):
         reverse_prop = None
 
         for prop in target_mapper.iterate_properties:
-            if hasattr(prop, 'direction') and prop.direction.name == 'MANYTOONE':
+            if hasattr(prop, 'direction'):
                 if issubclass(model, prop.mapper.class_):
                     reverse_prop = prop
                     break
@@ -592,7 +594,7 @@ class InlineModelConverter(InlineModelConverterBase):
         forward_prop = None
 
         for prop in mapper.iterate_properties:
-            if hasattr(prop, 'direction') and prop.direction.name == 'ONETOMANY':
+            if hasattr(prop, 'direction'):
                 if prop.mapper.class_ == target_mapper.class_:
                     forward_prop = prop
                     break

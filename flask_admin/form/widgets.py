@@ -44,6 +44,8 @@ class DatePickerWidget(widgets.TextInput):
     """
     def __call__(self, field, **kwargs):
         kwargs['data-role'] = u'datepicker'
+        kwargs['data-date-format'] = u'yyyy-mm-dd'
+        kwargs['data-date-autoclose'] = u'true'
         return super(DatePickerWidget, self).__call__(field, **kwargs)
 
 
@@ -55,7 +57,24 @@ class DateTimePickerWidget(widgets.TextInput):
     """
     def __call__(self, field, **kwargs):
         kwargs['data-role'] = u'datetimepicker'
+        kwargs['data-date-format'] = u'yyyy-mm-dd hh:ii:ss'
+        kwargs['data-date-autoclose'] = u'true'
+        kwargs['data-date-today-btn'] = u'linked'
+        kwargs['data-date-today-highlight'] = u'true'
         return super(DateTimePickerWidget, self).__call__(field, **kwargs)
+
+
+class TimePickerWidget(widgets.TextInput):
+    """
+        Date picker widget.
+
+        You must include bootstrap-datepicker.js and form.js for styling to work.
+    """
+    def __call__(self, field, **kwargs):
+        kwargs['data-role'] = u'timepicker'
+        kwargs['data-date-format'] = field.widget_format or 'hh:ii:ss'
+        kwargs['data-date-autoclose'] = u'true'
+        return super(TimePickerWidget, self).__call__(field, **kwargs)
 
 
 class RenderTemplateWidget(object):

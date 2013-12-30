@@ -13,6 +13,14 @@ class BaseForm(form.Form):
         super(BaseForm, self).__init__(formdata=formdata, obj=obj, prefix=prefix, **kwargs)
 
 
+class FormOpts(object):
+    __slots__ = ['widget_args', 'form_rules']
+
+    def __init__(self, widget_args=None, form_rules=None):
+        self.widget_args = widget_args or {}
+        self.form_rules = form_rules
+
+
 def recreate_field(unbound):
     """
         Create new instance of the unbound field, resetting wtforms creation counter.

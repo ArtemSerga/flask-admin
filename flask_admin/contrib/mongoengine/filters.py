@@ -17,7 +17,7 @@ class BaseMongoEngineFilter(filters.BaseFilter):
             :param name:
                 Display name
             :param options:
-                Fixed set of options
+                Fixed set of options. If provided, will use drop down instead of textbox.
             :param data_type:
                 Client data type
         """
@@ -107,7 +107,7 @@ class FilterConverter(filters.BaseFilterConverter):
 
         return None
 
-    @filters.convert('StringField')
+    @filters.convert('StringField', 'EmailField')
     def conv_string(self, column, name):
         return [f(column, name) for f in self.strings]
 

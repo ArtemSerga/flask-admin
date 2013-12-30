@@ -76,7 +76,7 @@ class InlineFieldList(FieldList):
         _fake = type(str('_fake'), (object, ), {})
 
         output = []
-        for field, data in itertools.izip(self.entries, candidates):
+        for field, data in zip(self.entries, candidates):
             if not self.should_delete(field):
                 fake_obj = _fake()
                 fake_obj.data = data
@@ -84,6 +84,13 @@ class InlineFieldList(FieldList):
                 output.append(fake_obj.data)
 
         setattr(obj, name, output)
+
+
+class InlineFormField(FormField):
+    """
+        Inline version of the ``FormField`` widget.
+    """
+    widget = InlineFormWidget()
 
 
 class InlineModelFormField(FormField):
@@ -95,8 +102,8 @@ class InlineModelFormField(FormField):
     """
     widget = InlineFormWidget()
 
-    def __init__(self, form, pk, **kwargs):
-        super(InlineModelFormField, self).__init__(form, **kwargs)
+    def __init__(self, form_class, pk, **kwargs):
+        super(InlineModelFormField, self).__init__(form_class, **kwargs)
 
         self._pk = pk
 
@@ -107,13 +114,6 @@ class InlineModelFormField(FormField):
         for name, field in iteritems(self.form._fields):
             if name != self._pk:
                 field.populate_obj(obj, name)
-
-
-class InlineFormField(FormField):
-    """
-        Inline version of the ``FormField`` widget.
-    """
-    widget = InlineFormWidget()
 
 
 class AjaxSelectField(SelectFieldBase):

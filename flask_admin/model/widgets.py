@@ -12,8 +12,13 @@ class InlineFieldListWidget(RenderTemplateWidget):
 
 
 class InlineFormWidget(RenderTemplateWidget):
-    def __init__(self):
+    def __init__(self, form_opts=None):
         super(InlineFormWidget, self).__init__('admin/model/inline_form.html')
+        self.form_opts = form_opts
+
+    def __call__(self, field, **kwargs):
+        kwargs.setdefault('form_opts', self.form_opts)
+        return super(InlineFormWidget, self).__call__(field, **kwargs)
 
 
 class AjaxSelect2Widget(object):

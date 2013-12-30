@@ -1,3 +1,5 @@
+from re import sub
+from jinja2 import contextfunction
 from flask import g, request
 from wtforms.validators import DataRequired, InputRequired
 
@@ -59,7 +61,7 @@ def get_form_data():
 
 def is_field_error(errors):
     """
-        Check if wtforms field has direct error.
+        Check if wtforms field has error without checking its children.
 
         :param errors:
             Errors list.
@@ -69,3 +71,28 @@ def is_field_error(errors):
             return True
 
     return False
+
+
+@contextfunction
+def resolve_ctx(context):
+    """
+        Resolve current Jinja2 context and store it for general consumption.
+    """
+    g._admin_render_ctx = context
+
+
+def get_render_ctx():
+    """
+        Get view template context.
+    """
+    return getattr(g, '_admin_render_ctx', None)
+
+
+def prettify_class_name(name):
+    """
+        Split words in PascalCase string into separate words.
+
+        :param name:
+            String to split
+    """
+    return sub(r'(?<=.)([A-Z])', r' \1', name)
