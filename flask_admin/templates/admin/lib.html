@@ -116,11 +116,11 @@
   </div>
 {% endmacro %}
 
-% macro render_header(form, text) %}
+{% macro render_header(form, text) %}
     <h3>{{ text }}</h3>
 {% endmacro %}
 
-{% macro render_form_fields(form, set_focus=True, form_opts={}) %}
+{% macro render_form_fields(form, set_focus=True, form_opts={}, enable_disabling=False) %}
     {% if form.hidden_tag is defined %}
         {{ form.hidden_tag() }}
     {% else %}
@@ -140,13 +140,13 @@
           {% else %}
             {% set kwargs = {} %}
           {% endif %}
-          {{ render_field(form, f, kwargs, enable_disabling) }}
+          {{ render_field(form, f, kwargs, enable_disabling=enable_disabling) }}
         {% endfor %}
     {% endif %}
 {% endmacro %}
 
-{% macro form_tag(form=None) %}
-    <form action="" method="POST" class="form-horizontal" enctype="multipart/form-data">
+{% macro form_tag(form=None, action=None) %}
+    <form action="{{ action or ''}}" method="POST" class="form-horizontal" enctype="multipart/form-data">
       <fieldset>
         {{ caller() }}
       </fieldset>
