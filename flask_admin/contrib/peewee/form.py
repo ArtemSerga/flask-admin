@@ -90,6 +90,8 @@ class CustomModelConverter(ModelConverter):
         self.converters[DateField] = self.handle_date
         self.converters[TimeField] = self.handle_time
 
+        self.overrides = getattr(self.view, 'form_overrides', None) or {}
+
     def handle_foreign_key(self, model, field, **kwargs):
         loader = getattr(self.view, '_form_ajax_refs', {}).get(field.name)
 
@@ -169,7 +171,7 @@ class InlineModelConverter(InlineModelConverterBase):
                 attrs = dict()
 
                 for attr in dir(p):
-                    if not attr.startswith('_') and attr != model:
+                    if not attr.startswith('_') and attr != 'model':
                         attrs[attr] = getattr(p, attr)
 
                 info = InlineFormAdmin(model, **attrs)

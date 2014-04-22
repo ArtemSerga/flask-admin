@@ -97,6 +97,11 @@ class AdminModelConverter(ModelConverterBase):
             return QuerySelectField(**kwargs)
 
     def _convert_relation(self, prop, kwargs):
+        # Check if relation is specified
+        form_columns = getattr(self.view, 'form_columns', None)
+        if form_columns and prop.key not in form_columns:
+            return None
+
         remote_model = prop.mapper.class_
         column = prop.local_remote_pairs[0][0]
 
@@ -108,9 +113,9 @@ class AdminModelConverter(ModelConverterBase):
         kwargs['label'] = self._get_label(prop.key, kwargs)
         kwargs['description'] = self._get_description(prop.key, kwargs)
 
-        if column.nullable:
+        if column.nullable or prop.direction.name != 'MANYTOONE':
             kwargs['validators'].append(validators.Optional())
-        elif prop.direction.name != 'MANYTOMANY':
+        else:
             kwargs['validators'].append(validators.InputRequired())
 
         # Contribute model-related parameters
@@ -304,6 +309,11 @@ class AdminModelConverter(ModelConverterBase):
             field_args['validators'].append(validators.AnyOf(column.type.enums))
             field_args['choices'] = [(f, f) for f in column.type.enums]
             return form.Select2Field(**field_args)
+
+        if column.nullable:
+            filters = field_args.get('filters', [])
+            filters.append(lambda x: x or None)
+            field_args['filters'] = filters
 
         self._string_common(column=column, field_args=field_args, **extra)
         return fields.TextField(**field_args)

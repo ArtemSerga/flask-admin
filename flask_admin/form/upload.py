@@ -106,7 +106,7 @@ class ImageUploadInput(object):
         if field.url_relative_path:
             filename = urljoin(field.url_relative_path, filename)
 
-        return url_for(field.endpoint, filename=field.data)
+        return url_for(field.endpoint, filename=filename)
 
 
 # Fields
@@ -177,7 +177,8 @@ class FileUploadField(fields.TextField):
             return True
 
         return ('.' in filename and
-                filename.rsplit('.', 1)[1] in self.allowed_extensions)
+                filename.rsplit('.', 1)[1].lower() in
+                map(lambda x: x.lower(), self.allowed_extensions))
 
     def pre_validate(self, form):
         if (self.data and
@@ -208,6 +209,8 @@ class FileUploadField(fields.TextField):
 
             filename = self.generate_name(obj, self.data)
             filename = self._save_file(self.data, filename)
+            # update filename of FileStorage to our validated name
+            self.data.filename = filename
 
             setattr(obj, name, filename)
 
@@ -329,7 +332,7 @@ class ImageUploadField(FileUploadField):
         """
         # Check if PIL is installed
         if Image is None:
-            raise Exception('PIL library was not found')
+            raise ImportError('PIL library was not found')
 
         self.max_size = max_size
         self.thumbnail_fn = thumbgen or thumbgen_filename
