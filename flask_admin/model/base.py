@@ -1335,7 +1335,6 @@ class BaseModelView(BaseView, ActionsMixin):
         query = request.args.get('query')
         offset = request.args.get('offset', type=int)
         limit = request.args.get('limit', 10, type=int)
-
         loader = self._form_ajax_refs.get(name)
 
         if not loader:

@@ -556,7 +556,8 @@ class ModelView(BaseModelView):
         """
             Create form from the model.
         """
-        converter = self.model_form_converter(self.session, self, chosen_enabled=False)
+        # converter = self.model_form_converter(self.session, self, chosen_enabled=False)
+        converter = self.model_form_converter(self.session, self)
         form_class = form.get_form(self.model, converter,
                                    only=self.form_multiple_update_columns,
                                    field_args=self.form_args)
