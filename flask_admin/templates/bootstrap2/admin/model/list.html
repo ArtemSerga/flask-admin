@@ -139,7 +139,7 @@
         </tr>
         {% endfor %}
     </table>
-
+    {{ lib.pager(page, num_pages, pager_url) }}
     {# Multiple update form container #}
     {% if multiple_update_form %}
         <div class="overlay" id="multiple_update">
