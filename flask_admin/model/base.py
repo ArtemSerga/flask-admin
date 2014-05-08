@@ -24,6 +24,14 @@ filter_char_re = re.compile('[^a-z0-9 ]')
 filter_compact_re = re.compile(' +')
 
 
+def lazy(func):
+    def lazyfunc(*args, **kwargs):
+        wrapped = lambda: func(*args, **kwargs)
+        wrapped.__name__ = "lazy-" + func.__name__
+        return wrapped
+    return lazyfunc
+
+
 class BaseModelView(BaseView, ActionsMixin):
     """
         Base model view.
@@ -514,6 +522,19 @@ class BaseModelView(BaseView, ActionsMixin):
         # Scaffolding
         self._refresh_cache()
 
+    def _serialize_filter_data(self, i, flt):
+        """
+            Convert filter information into JSON-serializable object.
+        """
+        result = {
+            'index': i,
+            'arg': self.get_filter_arg(i, flt),
+            'operation': flt.operation(),
+            'type': flt.data_type,
+            'options': flt.get_options(self) or None,
+        }
+        return result
+
     # Caching
     def _refresh_forms_cache(self):
         # Forms
@@ -535,15 +556,12 @@ class BaseModelView(BaseView, ActionsMixin):
             for i, flt in enumerate(self._filters):
                 if flt.name not in self._filter_groups:
                     self._filter_groups[flt.name] = []
-
-                self._filter_groups[flt.name].append({
-                    'index': i,
-                    'arg': self.get_filter_arg(i, flt),
-                    'operation': flt.operation(),
-                    'options': flt.get_options(self) or None,
-                    'type': flt.data_type
-                })
-
+                data = (
+                    self._serialize_filter_data(i, flt)
+                    if flt.cache_enabled
+                    else lazy(self._serialize_filter_data)(i, flt)
+                )
+                self._filter_groups[flt.name].append(data)
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
             self._filter_groups = None
@@ -1189,6 +1207,13 @@ class BaseModelView(BaseView, ActionsMixin):
 
         # Actions
         actions, actions_confirmation = self.get_actions_list()
+
+        # Process Lazy filters
+        if self._filter_groups:
+            for name, filters_list in self._filter_groups.items():
+                for i, flt in enumerate(filters_list):
+                    if not isinstance(flt, dict):
+                        self._filter_groups[name][i] = flt()
 
         return self.render(self.list_template,
                                data=data,

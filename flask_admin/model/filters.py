@@ -6,6 +6,9 @@ class BaseFilter(object):
     """
         Base filter class.
     """
+
+    cache_enabled = True
+
     def __init__(self, name, options=None, data_type=None):
         """
             Constructor.
