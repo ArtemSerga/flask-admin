@@ -79,28 +79,17 @@
   {% set direct_error = h.is_field_error(field.errors) %}
   <div class="control-group{{ ' error' if direct_error else '' }}">
     <div class="control-label">
-      {{ field.label.text }}
-      {% if h.is_required_form_field(field) %}
-        <strong style="color: red">&#42;</strong>
-      {% else %}
-        &nbsp;
-      {% endif %}
+      <label for="{{ field.id }}">{{ field.label.text }}
+          {% if h.is_required_form_field(field) %}
+            <strong style="color: red">&#42;</strong>
+          {%- else -%}
+            &nbsp;
+          {%- endif %}
+      </label>
     </div>
     <div class="controls">
     <div>
-      {% if set_focus %}
-        {% if enable_disabling %}
-            {{ field(autofocus='autofocus', disabled='disabled', **kwargs)|safe }}
-        {% else %}
-            {{ field(autofocus='autofocus', **kwargs)|safe }}
-        {% endif %}
-      {% else %}
-        {% if enable_disabling %}
-          {{ field(disabled='disabled', **kwargs)|safe }}
-        {% else %}
-          {{ field(**kwargs)|safe }}
-        {% endif %}
-      {% endif %}
+      {{ field(**kwargs)|safe }}
     </div>
     {% if field.description %}
     <p class="help-block">{{ field.description }}</p>
@@ -124,7 +113,10 @@
     {% if form.hidden_tag is defined %}
         {{ form.hidden_tag() }}
     {% else %}
-        {% for f in form if f.type == 'HiddenField' %}
+        {% if csrf_token %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        {% endif %}
+        {% for f in form if f.widget.input_type == 'hidden' %}
             {{ f }}
         {% endfor %}
     {% endif %}
@@ -134,7 +126,7 @@
             {{ r(form, form_opts=form_opts) }}
         {% endfor %}
     {% else %}
-        {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
+        {% for f in form if f.widget.input_type != 'hidden' %}
           {% if form_opts %}
             {% set kwargs = form_opts.widget_args.get(f.name, {}) %}
           {% else %}

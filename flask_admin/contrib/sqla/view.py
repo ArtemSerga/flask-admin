@@ -3,6 +3,7 @@ import logging
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import Column, Boolean, String, func, or_
 
 from flask.ext.admin._compat import string_types
@@ -795,6 +796,14 @@ class ModelView(BaseModelView):
         """
         return self.session.query(self.model).get(id)
 
+    # Error handler
+    def handle_view_exception(self, exc):
+        if isinstance(exc, IntegrityError):
+            flash(gettext('Integrity error. %(message)s', message=exc.message), 'error')
+            return True
+
+        return super(BaseModelView, self).handle_view_exception(exc)
+
     # Model handlers
     def create_model(self, form):
         """
@@ -810,7 +819,7 @@ class ModelView(BaseModelView):
             self._on_model_change(form, model, True)
             self.session.commit()
         except Exception as ex:
-            if self._debug:
+            if not self.handle_view_exception(ex):
                 raise
 
             flash(gettext('Failed to create model. %(error)s', error=str(ex)), 'error')
@@ -836,7 +845,7 @@ class ModelView(BaseModelView):
             self._on_model_change(form, model, False)
             self.session.commit()
         except Exception as ex:
-            if self._debug:
+            if not self.handle_view_exception(ex):
                 raise
 
             flash(gettext('Failed to update model. %(error)s', error=str(ex)), 'error')
@@ -863,7 +872,7 @@ class ModelView(BaseModelView):
             self.session.commit()
             return True
         except Exception as ex:
-            if self._debug:
+            if not self.handle_view_exception(ex):
                 raise
 
             flash(gettext('Failed to delete model. %(error)s', error=str(ex)), 'error')
@@ -903,7 +912,7 @@ class ModelView(BaseModelView):
                            count,
                            count=count))
         except Exception as ex:
-            if self._debug:
+            if not self.handle_view_exception(ex):
                 raise
 
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)), 'error')

@@ -111,7 +111,7 @@
         {% if csrf_token %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         {% endif %}
-        {% for f in form if f.type == 'HiddenField' %}
+        {% for f in form if f.widget.input_type == 'hidden' %}
             {{ f }}
         {% endfor %}
     {% endif %}
@@ -121,7 +121,7 @@
             {{ r(form, form_opts=form_opts) }}
         {% endfor %}
     {% else %}
-        {% for f in form if f.type != 'HiddenField' and f.type != 'CSRFTokenField' %}
+        {% for f in form if f.widget.input_type != 'hidden' %}
           {% if form_opts %}
             {% set kwargs = form_opts.widget_args.get(f.name, {}) %}
           {% else %}
@@ -132,8 +132,8 @@
     {% endif %}
 {% endmacro %}
 
-{% macro form_tag(form=None) %}
-    <form action="" method="POST" role="form" class="form-horizontal" enctype="multipart/form-data">
+{% macro form_tag(form=None, action=None) %}
+    <form action="{{ action or '' }}" method="POST" role="form" class="form-horizontal" enctype="multipart/form-data">
       {{ caller() }}
     </form>
 {% endmacro %}
@@ -152,8 +152,8 @@
     </div>
 {% endmacro %}
 
-{% macro render_form(form, cancel_url, extra=None, form_opts=None) -%}
-    {% call form_tag() %}
+{% macro render_form(form, cancel_url, extra=None, form_opts=None, action=None) -%}
+    {% call form_tag(action=action) %}
         {{ render_form_fields(form, form_opts=form_opts) }}
         {{ render_form_buttons(cancel_url, extra) }}
     {% endcall %}
