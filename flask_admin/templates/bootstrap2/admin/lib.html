@@ -75,7 +75,7 @@
 {%- endmacro %}
 
 {# ---------------------- Forms -------------------------- #}
-{% macro render_field(form, field, set_focus=False, kwargs={}, enable_disabling=False) %}
+{% macro render_field(form, field, kwargs={}, enable_disabling=False) %}
   {% set direct_error = h.is_field_error(field.errors) %}
   <div class="control-group{{ ' error' if direct_error else '' }}">
     <div class="control-label">
@@ -102,6 +102,9 @@
       </ul>
     {% endif %}
     </div>
+    {% if caller %}
+      {{ caller(form, field, direct_error, kwargs) }}
+    {% endif %}
   </div>
 {% endmacro %}
 
@@ -109,7 +112,7 @@
     <h3>{{ text }}</h3>
 {% endmacro %}
 
-{% macro render_form_fields(form, set_focus=True, form_opts={}, enable_disabling=False) %}
+{% macro render_form_fields(form, form_opts=None, enable_disabling=False) %}
     {% if form.hidden_tag is defined %}
         {{ form.hidden_tag() }}
     {% else %}
@@ -137,7 +140,7 @@
     {% endif %}
 {% endmacro %}
 
-{% macro form_tag(form=None, action=None) %}
+{% macro form_tag(form=None) %}
     <form action="{{ action or ''}}" method="POST" class="form-horizontal" enctype="multipart/form-data">
       <fieldset>
         {{ caller() }}
@@ -164,4 +167,14 @@
         {{ render_form_fields(form, form_opts=form_opts) }}
         {{ render_form_buttons(cancel_url, extra) }}
     {% endcall %}
+{% endmacro %}
+
+{% macro form_css() %}
+  <link href="{{ admin_static.url(filename='vendor/select2/select2.css') }}" rel="stylesheet">
+  <link href="{{ admin_static.url(filename='vendor/datetimepicker-bs2/bootstrap-datetimepicker.css') }}" rel="stylesheet">
+{% endmacro %}
+
+{% macro form_js() %}
+  <script src="{{ admin_static.url(filename='vendor/datetimepicker-bs2/bootstrap-datetimepicker.js') }}"></script>
+  <script src="{{ admin_static.url(filename='admin/js/form.js') }}"></script>
 {% endmacro %}

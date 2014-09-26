@@ -34,23 +34,19 @@
                 <td>
                     <select class="filter-op" data-role="select2">
                         {% for op in filter_groups[filter.name] %}
-                            <option value="{{ op['arg'] }}"{{ ' selected' if idx == op['index'] }}>
-                                {{ op['operation'] }}
-                            </option>
+                        <option value="{{ op['arg'] }}"{% if idx == op['index'] %} selected="selected"{% endif %}>{{ op['operation'] }}</option>
                         {% endfor %}
                     </select>
                 </td>
                 <td>
-                    {%- if 'options' in filter_groups[filter.name][0] -%}
-                        <select name="flt{{n}}_{{ filter_arg }}" class="filter-val" data-role="select2">
-                            {%- for v, label in filter_groups[filter.name][0]['options'] %}
-                                <option value="{{ v }}"{{ ' selected' if value == v|string }}>
-                                    {{ label }}
-                                </option>
-                            {%- endfor %}
-                        </select>
+                    {%- if filter.options -%}
+                    <select name="flt{{n}}_{{ filter_arg }}" class="filter-val" data-role="select2">
+                        {%- for d in filter.options %}
+                        <option value="{{ d[0] }}"{% if value == d[0] %} selected{% endif %}>{{ d[1] }}</option>
+                        {%- endfor %}
+                    </select>
                     {%- else -%}
-                        <input name="flt{{n}}_{{ filter_arg }}" type="text" value="{{ value or '' }}" class="filter-val"{% if filter.data_type %} data-role="{{ filter.data_type }}"{% endif %}></input>
+                    <input name="flt{{n}}_{{ filter_arg }}" type="text" value="{{ value or '' }}" class="filter-val  form-control"{% if filter.data_type %} data-role="{{ filter.data_type }}"{% endif %} {% if filter.data_type == "datepicker" %}data-date-format="YYYY-MM-DD"{% elif filter.data_type == "datetimepicker" %}data-date-format="YYYY-MM-DD hh:mm:ss"{% endif %}></input>
                     {%- endif -%}
                 </td>
             </tr>

@@ -1,8 +1,6 @@
 import os
 import os.path as op
 
-from flask import url_for
-
 from werkzeug import secure_filename
 from werkzeug.datastructures import FileStorage
 
@@ -15,6 +13,7 @@ except ImportError:
     from wtforms.utils import unset_value
 
 from flask.ext.admin.babel import gettext
+from flask.ext.admin.helpers import get_url
 
 from flask.ext.admin._compat import string_types, urljoin
 
@@ -106,7 +105,7 @@ class ImageUploadInput(object):
         if field.url_relative_path:
             filename = urljoin(field.url_relative_path, filename)
 
-        return url_for(field.endpoint, filename=filename)
+        return get_url(field.endpoint, filename=filename)
 
 
 # Fields
@@ -181,9 +180,10 @@ class FileUploadField(fields.TextField):
                 map(lambda x: x.lower(), self.allowed_extensions))
 
     def pre_validate(self, form):
-        if (self.data and
-                isinstance(self.data, FileStorage) and
-                not self.is_file_allowed(self.data.filename)):
+        if (self.data
+                and self.data.filename
+                and isinstance(self.data, FileStorage)
+                and not self.is_file_allowed(self.data.filename)):
             raise ValidationError(gettext('Invalid file extension'))
 
     def process(self, formdata, data=unset_value):
@@ -203,7 +203,7 @@ class FileUploadField(fields.TextField):
                 setattr(obj, name, None)
                 return
 
-        if self.data and isinstance(self.data, FileStorage):
+        if self.data and self.data.filename and isinstance(self.data, FileStorage):
             if field:
                 self._delete_file(field)
 
@@ -237,7 +237,7 @@ class FileUploadField(fields.TextField):
     def _save_file(self, data, filename):
         path = self._get_path(filename)
         if not op.exists(op.dirname(path)):
-            os.makedirs(os.path.dirname(path), self.permission)
+            os.makedirs(os.path.dirname(path), self.permission | 0o111)
 
         data.save(path)
 
@@ -355,7 +355,9 @@ class ImageUploadField(FileUploadField):
     def pre_validate(self, form):
         super(ImageUploadField, self).pre_validate(form)
 
-        if self.data and isinstance(self.data, FileStorage):
+        if (self.data and
+                isinstance(self.data, FileStorage) and
+                self.data.filename):
             try:
                 self.image = Image.open(self.data)
             except Exception as e:
@@ -392,7 +394,7 @@ class ImageUploadField(FileUploadField):
             self._save_image(image, self._get_path(filename), format)
         else:
             data.seek(0)
-            data.save(path)
+            data.save( self._get_path(filename) )
 
         self._save_thumbnail(data, filename, format)
 

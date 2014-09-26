@@ -38,6 +38,9 @@ def create_models(db):
         bool_field = db.Column(db.Boolean)
         enum_field = db.Column(db.Enum('model1_v1', 'model1_v1'), nullable=True)
 
+        def __unicode__(self):
+            return self.test1
+
         def __str__(self):
             return self.test1
 
@@ -218,6 +221,49 @@ def test_column_searchable_list():
     data = rv.data.decode('utf-8')
     ok_('model1' in data)
     ok_('model2' not in data)
+
+
+def test_complex_searchable_list():
+    app, db, admin = setup()
+
+    Model1, Model2 = create_models(db)
+
+    view = CustomModelView(Model2, db.session,
+                           column_searchable_list=['model1.test1'])
+    admin.add_view(view)
+
+    m1 = Model1('model1')
+    db.session.add(m1)
+    db.session.add(Model2('model2', model1=m1))
+    db.session.add(Model2('model3'))
+    db.session.commit()
+
+    client = app.test_client()
+
+    rv = client.get('/admin/model2/?search=model1')
+    data = rv.data.decode('utf-8')
+    ok_('model1' in data)
+    ok_('model3' not in data)
+
+
+def test_complex_searchable_list_missing_children():
+    app, db, admin = setup()
+
+    Model1, Model2 = create_models(db)
+
+    view = CustomModelView(Model1, db.session,
+                           column_searchable_list=[
+                               'test1', 'model2.string_field'])
+    admin.add_view(view)
+
+    db.session.add(Model1('magic string'))
+    db.session.commit()
+
+    client = app.test_client()
+
+    rv = client.get('/admin/model1/?search=magic')
+    data = rv.data.decode('utf-8')
+    ok_('magic string' in data)
 
 
 def test_column_filters():
@@ -468,42 +514,6 @@ def test_non_int_pk():
     data = rv.data.decode('utf-8')
     ok_('test2' in data)
 
-def test_multiple__pk():
-    # Test multiple primary keys - mix int and string together
-    app, db, admin = setup()
-
-    class Model(db.Model):
-        id = db.Column(db.Integer, primary_key=True)
-        id2 = db.Column(db.String(20), primary_key=True)
-        test = db.Column(db.String)
-
-    db.create_all()
-
-    view = CustomModelView(Model, db.session, form_columns=['id', 'id2', 'test'])
-    admin.add_view(view)
-
-    client = app.test_client()
-
-    rv = client.get('/admin/model/')
-    eq_(rv.status_code, 200)
-
-    rv = client.post('/admin/model/new/',
-                     data=dict(id=1, id2='two', test='test3'))
-    eq_(rv.status_code, 302)
-
-    rv = client.get('/admin/model/')
-    eq_(rv.status_code, 200)
-    data = rv.data.decode('utf-8')
-    ok_('test3' in data)
-
-    rv = client.get('/admin/model/edit/?id=1&id=two')
-    eq_(rv.status_code, 200)
-    data = rv.data.decode('utf-8')
-    ok_('test3' in data)
-
-    # Correct order is mandatory -> fail here
-    rv = client.get('/admin/model/edit/?id=two&id=1')
-    eq_(rv.status_code, 302)
 
 def test_form_columns():
     app, db, admin = setup()
@@ -669,6 +679,29 @@ def test_default_sort():
     eq_(data[1].test1, 'b')
     eq_(data[2].test1, 'c')
 
+
+def test_default_complex_sort():
+    app, db, admin = setup()
+    M1, M2 = create_models(db)
+
+    m1 = M1('b')
+    db.session.add(m1)
+    db.session.add(M2('c', model1=m1))
+
+    m2 = M1('a')
+    db.session.add(m2)
+    db.session.add(M2('c', model1=m2))
+
+    db.session.commit()
+
+    view = CustomModelView(M2, db.session, column_default_sort='model1.test1')
+    admin.add_view(view)
+
+    _, data = view.get_list(0, None, None, None, None)
+
+    eq_(len(data), 2)
+    eq_(data[0].model1.test1, 'a')
+    eq_(data[1].model1.test1, 'b')
 
 def test_extra_fields():
     app, db, admin = setup()

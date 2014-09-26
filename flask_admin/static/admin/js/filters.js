@@ -29,8 +29,14 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
 
     function removeFilter() {
         $(this).closest('tr').remove();
-        $('button', $root).show();
-
+        if($('.filters tr').length == 0) {
+            $('button', $root).hide();
+            $('a[class=btn]', $root).hide();
+            $('.filters tbody').remove();
+        } else {
+            $('button', $root).show();
+        }
+        
         return false;
     }
 
@@ -87,6 +93,12 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
 
         if (filter.type) {
             $field.attr('data-role', filter.type);
+            if (filter.type == "datepicker") {
+                $field.attr('data-date-format', "YYYY-MM-DD");
+            }
+            else if (filter.type == "datetimepicker") {
+                $field.attr('data-date-format', "YYYY-MM-DD hh:mm:ss");
+            }
             faForm.applyStyle($field, filter.type);
         }
     }

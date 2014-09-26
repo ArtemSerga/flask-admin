@@ -2,7 +2,7 @@ import os.path as op
 
 from functools import wraps
 
-from flask import Blueprint, render_template, abort, g
+from flask import Blueprint, render_template, abort, g, url_for
 from flask.ext.admin import babel
 from flask.ext.admin._compat import with_metaclass
 from flask.ext.admin import helpers as h
@@ -51,6 +51,10 @@ def expose_plugview(url='/'):
 
 # Base views
 def _wrap_view(f):
+    # Avoid wrapping view method twice
+    if hasattr(f, '_wrapped'):
+        return f
+
     @wraps(f)
     def inner(self, *args, **kwargs):
         # Store current admin view
@@ -61,7 +65,9 @@ def _wrap_view(f):
         if abort is not None:
             return abort
 
-        return f(self, *args, **kwargs)
+        return self._run_view(f, *args, **kwargs)
+
+    inner._wrapped = True
 
     return inner
 
@@ -105,6 +111,7 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
 
         Derive from this class to implement your administrative interface piece. For example::
 
+            from flask.ext.admin import BaseView, expose
             class MyView(BaseView):
                 @expose('/')
                 def index(self):
@@ -142,7 +149,8 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
         return args
 
     def __init__(self, name=None, category=None, endpoint=None, url=None,
-                 static_folder=None, static_url_path=None):
+                 static_folder=None, static_url_path=None,
+                 menu_class_name=None, menu_icon_type=None, menu_icon_value=None):
         """
             Constructor.
 
@@ -162,9 +170,16 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
                 and '/admin/' prefix won't be applied.
             :param static_url_path:
                 Static URL Path. If provided, this specifies the path to the static url directory.
-            :param debug:
-                Optional debug flag. If set to `True`, will rethrow exceptions in some cases, so Werkzeug
-                debugger can catch them.
+            :param menu_class_name:
+                Optional class name for the menu item.
+            :param menu_icon_type:
+                Optional icon. Possible icon types:
+
+                 - `flask.ext.admin.consts.ICON_TYPE_GLYPH` - Bootstrap glyph icon
+                 - `flask.ext.admin.consts.ICON_TYPE_IMAGE` - Image relative to Flask static directory
+                 - `flask.ext.admin.consts.ICON_TYPE_IMAGE_URL` - Image with full URL
+            :param menu_icon_value:
+                Icon glyph name or URL, depending on `menu_icon_type` setting
         """
         self.name = name
         self.category = category
@@ -172,6 +187,11 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
         self.url = url
         self.static_folder = static_folder
         self.static_url_path = static_url_path
+        self.menu = None
+
+        self.menu_class_name = menu_class_name
+        self.menu_icon_type = menu_icon_type
+        self.menu_icon_value = menu_icon_value
 
         # Initialized from create_blueprint
         self.admin = None
@@ -252,6 +272,9 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
         kwargs['_ngettext'] = babel.ngettext
         kwargs['h'] = h
 
+        # Expose get_url helper
+        kwargs['get_url'] = self.get_url
+
         # Contribute extra arguments
         kwargs.update(self._template_args)
 
@@ -292,8 +315,8 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
         """
             This method will be executed before calling any view method.
 
-            By default, it will check if the admin class is accessible and if it is not it will
-            throw HTTP 404 error.
+            It will execute the ``inaccessible_callback`` if the view is not
+            accessible.
 
             :param name:
                 View function name
@@ -301,7 +324,43 @@ class BaseView(with_metaclass(AdminViewMeta, BaseViewClass)):
                 View function arguments
         """
         if not self.is_accessible():
-            return abort(403)
+            return self.inaccessible_callback(name, **kwargs)
+
+    def _run_view(self, fn, *args, **kwargs):
+        """
+            This method will run actual view function.
+
+            While it is similar to _handle_view, can be used to change
+            arguments that are passed to the view.
+
+            :param fn:
+                View function
+            :param kwargs:
+                Arguments
+        """
+        return fn(self, *args, **kwargs)
+
+    def inaccessible_callback(self, name, **kwargs):
+        """
+            Handle the response to inaccessible views.
+
+            By default, it throw HTTP 403 error. Override this method to
+            customize the behaviour.
+        """
+        return abort(403)
+
+    def get_url(self, endpoint, **kwargs):
+        """
+            Generate URL for the endpoint. If you want to customize URL generation
+            logic (persist some query string argument, for example), this is
+            right place to do it.
+
+            :param endpoint:
+                Flask endpoint name
+            :param kwargs:
+                Arguments for `url_for`
+        """
+        return url_for(endpoint, **kwargs)
 
     @property
     def _debug(self):
@@ -466,6 +525,9 @@ class Admin(object):
 
     def _add_view_to_menu(self, view):
         self._add_menu_item(MenuView(view.name, view), view.category)
+
+    def get_category_menu_item(self, name):
+        return self._menu_categories.get(name)
 
     def init_app(self, app):
         """

@@ -1,6 +1,6 @@
 import warnings
 
-from flask.ext.admin.babel import gettext
+from flask.ext.admin.babel import lazy_gettext, gettext
 from flask.ext.admin.model import filters
 from flask.ext.admin.contrib.sqla import tools
 
@@ -33,7 +33,7 @@ class FilterEqual(BaseSQLAFilter):
         return query.filter(self.column == value)
 
     def operation(self):
-        return gettext('equals')
+        return lazy_gettext('equals')
 
 
 class FilterNotEqual(BaseSQLAFilter):
@@ -41,7 +41,7 @@ class FilterNotEqual(BaseSQLAFilter):
         return query.filter(self.column != value)
 
     def operation(self):
-        return gettext('not equal')
+        return lazy_gettext('not equal')
 
 
 class FilterLike(BaseSQLAFilter):
@@ -50,7 +50,7 @@ class FilterLike(BaseSQLAFilter):
         return query.filter(self.column.ilike(stmt))
 
     def operation(self):
-        return gettext('contains')
+        return lazy_gettext('contains')
 
 
 class FilterNotLike(BaseSQLAFilter):
@@ -59,7 +59,7 @@ class FilterNotLike(BaseSQLAFilter):
         return query.filter(~self.column.ilike(stmt))
 
     def operation(self):
-        return gettext('not contains')
+        return lazy_gettext('not contains')
 
 
 class FilterGreater(BaseSQLAFilter):
@@ -67,7 +67,7 @@ class FilterGreater(BaseSQLAFilter):
         return query.filter(self.column > value)
 
     def operation(self):
-        return gettext('greater than')
+        return lazy_gettext('greater than')
 
 
 class FilterSmaller(BaseSQLAFilter):
@@ -75,7 +75,7 @@ class FilterSmaller(BaseSQLAFilter):
         return query.filter(self.column < value)
 
     def operation(self):
-        return gettext('smaller than')
+        return lazy_gettext('smaller than')
 
 
 # Customized type filters
@@ -172,32 +172,32 @@ class FilterConverter(filters.BaseFilterConverter):
     enum = (FilterEqual, FilterNotEqual)
 
     def convert(self, type_name, column, name, **kwargs):
-        if type_name in self.converters:
-            return self.converters[type_name](column, name, **kwargs)
+        if type_name.lower() in self.converters:
+            return self.converters[type_name.lower()](column, name, **kwargs)
 
         return None
 
-    @filters.convert('String', 'Unicode', 'Text', 'UnicodeText')
+    @filters.convert('string', 'unicode', 'text', 'unicodetext', 'varchar')
     def conv_string(self, column, name, **kwargs):
         return [f(column, name, **kwargs) for f in self.strings]
 
-    @filters.convert('Boolean')
+    @filters.convert('boolean', 'tinyint')
     def conv_bool(self, column, name, **kwargs):
         return [f(column, name, **kwargs) for f in self.bool]
 
-    @filters.convert('Integer', 'SmallInteger', 'Numeric', 'Float', 'BigInteger')
+    @filters.convert('integer', 'smallinteger', 'numeric', 'float', 'biginteger')
     def conv_int(self, column, name, **kwargs):
         return [f(column, name, **kwargs) for f in self.numeric]
 
-    @filters.convert('Date')
+    @filters.convert('date')
     def conv_date(self, column, name, **kwargs):
         return [f(column, name, data_type='datepicker', **kwargs) for f in self.numeric]
 
-    @filters.convert('DateTime')
+    @filters.convert('datetime')
     def conv_datetime(self, column, name, **kwargs):
         return [f(column, name, data_type='datetimepicker', **kwargs) for f in self.numeric]
 
-    @filters.convert('Enum', 'ENUM')
+    @filters.convert('enum')
     def conv_enum(self, column, name, options=None, **kwargs):
         if not options:
             options = [
