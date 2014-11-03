@@ -11,8 +11,17 @@
     </ul>
 {% endmacro %}
 
+{% macro hidden_args() %}
+    {% for name, value in request.args.items() %}
+        {% if name not in ['page', 'search', 'sort', 'desc'] and not name.startswith('flt') %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}"/>
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+
 {% macro filter_form() %}
     <form id="filter_form" method="GET" action="{{ return_url }}">
+        {{ hidden_args() }}
         <div class="pull-right">
             <button type="submit" class="btn btn-primary" style="display: none">{{ _gettext('Apply') }}</button>
             {% if active_filters %}
@@ -58,6 +67,8 @@
 
 {% macro search_form(input_class="span2") %}
 <form method="GET" action="{{ return_url }}" class="navbar-form navbar-left" role="search">
+    {{ hidden_args() }}
+
     {% if sort_column is not none %}
     <input type="hidden" name="sort" value="{{ sort_column }}"></input>
     {% endif %}
