@@ -2,8 +2,8 @@ import warnings
 import re
 
 from flask import request, redirect, flash, abort, json, Response
-
 from jinja2 import contextfunction
+from wtforms.validators import ValidationError
 
 from flask.ext.admin.babel import gettext
 
@@ -54,14 +54,6 @@ class ViewArgs(object):
         kwargs.setdefault('extra_args', dict(self.extra_args))
 
         return ViewArgs(**kwargs)
-
-
-def lazy(func):
-    def lazyfunc(*args, **kwargs):
-        wrapped = lambda: func(*args, **kwargs)
-        wrapped.__name__ = "lazy-" + func.__name__
-        return wrapped
-    return lazyfunc
 
 
 class BaseModelView(BaseView, ActionsMixin):
@@ -898,6 +890,15 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         return self._edit_form_class(get_form_data(), obj=obj)
 
+    def validate_form(self, form):
+        """
+            Validate the form on submit.
+
+            :param form:
+                Form to validate
+        """
+        return validate_form_on_submit(form)
+
     # Helpers
     def is_sortable(self, name):
         """
@@ -963,6 +964,10 @@ class BaseModelView(BaseView, ActionsMixin):
 
     # Exception handler
     def handle_view_exception(self, exc):
+        if isinstance(exc, ValidationError):
+            flash(unicode(exc))
+            return True
+
         if self._debug:
             raise
 
@@ -1289,6 +1294,12 @@ class BaseModelView(BaseView, ActionsMixin):
                                                               search=None,
                                                               filters=None))
 
+        clear_search_url = self._get_list_url(view_args.clone(page=0,
+                                                              sort=view_args.sort,
+                                                              sort_desc=view_args.sort_desc,
+                                                              search=None,
+                                                              filters=None))
+
         # Process Lazy filters
         if self._filter_groups:
             for name, filters_list in self._filter_groups.items():
@@ -1349,7 +1360,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         form = self.create_form()
 
-        if validate_form_on_submit(form):
+        if self.validate_form(form):
             if self.create_model(form):
                 if '_add_another' in request.form:
                     flash(gettext('Model was successfully created.'))
@@ -1386,7 +1397,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         form = self.edit_form(obj=model)
 
-        if validate_form_on_submit(form):
+        if self.validate_form(form):
             if self.update_model(form, model):
                 if '_continue_editing' in request.form:
                     flash(gettext('Model was successfully saved.'))

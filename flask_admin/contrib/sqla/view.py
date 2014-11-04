@@ -3,11 +3,12 @@ import logging
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import desc
+from sqlalchemy import Column, Boolean, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import Column, Boolean, String, func, or_
+
+from flask import flash
 
 from flask.ext.admin._compat import string_types
-from flask import flash, request
 from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
 from flask.ext.admin.model import BaseModelView
 from flask.ext.admin.actions import action
@@ -372,18 +373,19 @@ class ModelView(BaseModelView):
                 if self.column_display_all_relations or p.direction.name == 'MANYTOONE':
                     columns.append(p.key)
             elif hasattr(p, 'columns'):
-                if len(p.columns) > 1:
-                    filtered = tools.filter_foreign_columns(self.model.__table__, p.columns)
+                column_inherited_primary_key = False
 
-                    if len(filtered) > 1:
-                        # TODO: Skip column and issue a warning
+                if len(p.columns) != 1:
+                    if is_inherited_primary_key(p):
+                        column = get_column_for_current_model(p)
+                    else:
                         raise TypeError('Can not convert multiple-column properties (%s.%s)' % (self.model, p.key))
-
-                    column = filtered[0]
                 else:
+                    # Grab column
                     column = p.columns[0]
 
-                if column.foreign_keys:
+                # An inherited primary key has a foreign key as well
+                if column.foreign_keys and not is_inherited_primary_key(p):
                     continue
 
                 if not self.column_display_pk and column.primary_key:
@@ -747,15 +749,23 @@ class ModelView(BaseModelView):
         query = self.get_query()
         count_query = self.get_count_query()
 
+        # Ignore eager-loaded relations (prevent unnecessary joins)
+        # TODO: Separate join detection for query and count query?
+        if hasattr(query, '_join_entities'):
+            for entity in query._join_entities:
+                for table in entity.tables:
+                    joins.add(table.name)
+
         # Apply search criteria
         if self._search_supported and search:
             # Apply search-related joins
             if self._search_joins:
                 for table in self._search_joins:
-                    query = query.outerjoin(table)
-                    count_query = count_query.outerjoin(table)
+                    if table.name not in joins:
+                        query = query.outerjoin(table)
+                        count_query = count_query.outerjoin(table)
 
-                    joins.add(table.name)
+                        joins.add(table.name)
 
             # Apply terms
             terms = search.split(' ')

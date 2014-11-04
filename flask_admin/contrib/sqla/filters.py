@@ -1,6 +1,6 @@
 import warnings
 
-from flask.ext.admin.babel import lazy_gettext, gettext
+from flask.ext.admin.babel import lazy_gettext
 from flask.ext.admin.model import filters
 from flask.ext.admin.contrib.sqla import tools
 

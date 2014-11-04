@@ -1,4 +1,4 @@
-from flask import request, url_for, redirect
+from flask import request, redirect
 
 
 from flask.ext.admin import tools
