@@ -130,7 +130,7 @@ class FilterManyToOne(BaseSQLAFilter):
             self.parent_property = getattr(self.model, column).property
 
     def operation(self):
-        return gettext('equals')
+        return lazy_gettext('equals')
 
     def validate(self, value):
         return True

@@ -56,6 +56,14 @@ class ViewArgs(object):
         return ViewArgs(**kwargs)
 
 
+def lazy(func):
+    def lazyfunc(*args, **kwargs):
+        wrapped = lambda: func(*args, **kwargs)
+        wrapped.__name__ = "lazy-" + func.__name__
+        return wrapped
+    return lazyfunc
+
+
 class BaseModelView(BaseView, ActionsMixin):
     """
         Base model view.
