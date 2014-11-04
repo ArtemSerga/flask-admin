@@ -772,14 +772,13 @@ class ModelView(BaseModelView):
 
         # Apply filters
         if filters and self._filters:
+            conditions = []
             for idx, value in filters:
                 flt = self._filters[idx]
-
                 # Figure out joins
                 tbl = flt.column.table.name
 
                 join_tables = self._filter_joins.get(tbl, [])
-
                 for table in join_tables:
                     if table.name not in joins:
                         query = query.join(table)
@@ -787,8 +786,14 @@ class ModelView(BaseModelView):
                         joins.add(table.name)
 
                 # Apply filter
-                query = flt.apply(query, value)
-                count_query = flt.apply(count_query, value)
+                if flt.operation() == gettext('equals') and len(filters) > 1:
+                    conditions.append(flt.get_condition(value))
+                else:
+                    query = flt.apply(query, value)
+                    count_query = flt.apply(count_query, value)
+            if conditions:
+                query = query.filter(or_(*conditions))
+                count_query = count_query.filter(or_(*conditions))
 
         # Calculate number of rows
         count = count_query.scalar()

@@ -29,8 +29,11 @@ class BaseSQLAFilter(filters.BaseFilter):
 
 # Common filters
 class FilterEqual(BaseSQLAFilter):
+    def get_condition(self, value):
+        return self.column == value
+
     def apply(self, query, value):
-        return query.filter(self.column == value)
+        return query.filter(self.get_condition(value))
 
     def operation(self):
         return lazy_gettext('equals')
@@ -148,19 +151,23 @@ class FilterManyToOne(BaseSQLAFilter):
                 view._filter_joins[table.name] = [table]
         display_field = getattr(self, 'display_field', None)
         if display_field:
-            return [
-                (id, label)
+            self.options = [
+                (str(id), label)
                 for id, label in query.values('id', display_field)
             ]
         else:
-            return [
-                (obj.id, unicode(obj))
+            self.options = [
+                (str(obj.id), unicode(obj))
                 for obj in query
             ]
+        return self.options
+
+    def get_condition(self, value):
+        field = self.parent_property.local_remote_pairs[0][0]
+        return field == value
 
     def apply(self, query, value):
-        field = self.parent_property.local_remote_pairs[0][0]
-        query = query.filter(field == value)
+        query = query.filter(self.get_condition(value))
         return query
 
 
