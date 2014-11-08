@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -772,8 +773,10 @@ class ModelView(BaseModelView):
 
         # Apply filters
         if filters and self._filters:
-            conditions = []
+            values_per_idx = defaultdict(set)
             for idx, value in filters:
+                values_per_idx[idx].add(value)
+            for idx, values in values_per_idx.items():
                 flt = self._filters[idx]
                 # Figure out joins
                 tbl = flt.column.table.name
@@ -786,14 +789,14 @@ class ModelView(BaseModelView):
                         joins.add(table.name)
 
                 # Apply filter
-                if flt.operation() == gettext('equals') and len(filters) > 1:
-                    conditions.append(flt.get_condition(value))
+                if flt.operation() == gettext('equals') and len(values) > 1:
+                    conditions = map(flt.get_condition, values)
+                    query = query.filter(or_(*conditions))
+                    count_query = count_query.filter(or_(*conditions))
                 else:
-                    query = flt.apply(query, value)
-                    count_query = flt.apply(count_query, value)
-            if conditions:
-                query = query.filter(or_(*conditions))
-                count_query = count_query.filter(or_(*conditions))
+                    for value in values:
+                        query = flt.apply(query, value)
+                        count_query = flt.apply(count_query, value)
 
         # Calculate number of rows
         count = count_query.scalar()
