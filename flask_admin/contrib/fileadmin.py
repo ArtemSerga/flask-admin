@@ -737,7 +737,7 @@ class FileAdmin(BaseView, ActionsMixin):
 
     # Actions
     @action('delete',
-            lazy_gettext('Delete'),
+            u'<span class="glyphicon glyphicon-trash"></span>%s' % lazy_gettext('Delete'),
             lazy_gettext('Are you sure you want to delete these files?'))
     def action_delete(self, items):
         if not self.can_delete:

@@ -112,3 +112,7 @@ table.filters {
 .list-checkbox-column {
     width: 14px;
 }
+
+.dropdown .glyphicon {
+    margin-right: 4px;
+}

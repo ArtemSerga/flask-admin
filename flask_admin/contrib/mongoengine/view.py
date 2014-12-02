@@ -596,7 +596,7 @@ class ModelView(BaseModelView):
         return super(ModelView, self).is_action_allowed(name)
 
     @action('delete',
-            lazy_gettext('Delete'),
+            u'<span class="glyphicon glyphicon-trash"></span>%s' % lazy_gettext('Delete'),
             lazy_gettext('Are you sure you want to delete selected models?'))
     def action_delete(self, ids):
         try:
