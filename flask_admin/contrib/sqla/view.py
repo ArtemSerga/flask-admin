@@ -959,36 +959,36 @@ class ModelView(BaseModelView):
                 raise
 
             flash(gettext('Failed to delete models. %(error)s', error=str(ex)), 'error')
-
-    @action('multiple_update', lazy_gettext(u'Multiple Update'))
-    def action_multiple_update(self, ids):
-        try:
-            if ids:
-                model_pk = getattr(self.model, self._primary_key)
-                data = {}
-                q = self.get_query().filter(model_pk.in_(ids))
-                for column, value in request.form.items():
-                    if column in self.form_multiple_update_columns:
-                        attr = getattr(self.model, column)
-                        # Format column
-                        if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
-                            column += '_id'
-                        # Format value
-                        model_column = self.model.__table__.columns[column]
-                        if (value == '__None' or (
-                            not isinstance(model_column, String)
-                            and value == ''
-                            and model_column.nullable
-                        )):
-                            value = None
-                        data[column] = value
-                if data:
-                    count = q.update(data, synchronize_session=False)
-                    self.session.commit()
-                    flash(ngettext(u'Model was successfully updated.',
-                                   '%(count)s models were successfully updated.',
-                                   count,
-                                   count=count))
-        except Exception, exc:
-            flash(gettext(u'Failed to delete models. %(error)s', error=exc.message.decode('utf8')), 'error')
-
+    #
+    # @action('multiple_update', lazy_gettext(u'Multiple Update'))
+    # def action_multiple_update(self, ids):
+    #     try:
+    #         if ids:
+    #             model_pk = getattr(self.model, self._primary_key)
+    #             data = {}
+    #             q = self.get_query().filter(model_pk.in_(ids))
+    #             for column, value in request.form.items():
+    #                 if column in self.form_multiple_update_columns:
+    #                     attr = getattr(self.model, column)
+    #                     # Format column
+    #                     if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
+    #                         column += '_id'
+    #                     # Format value
+    #                     model_column = self.model.__table__.columns[column]
+    #                     if (value == '__None' or (
+    #                         not isinstance(model_column, String)
+    #                         and value == ''
+    #                         and model_column.nullable
+    #                     )):
+    #                         value = None
+    #                     data[column] = value
+    #             if data:
+    #                 count = q.update(data, synchronize_session=False)
+    #                 self.session.commit()
+    #                 flash(ngettext(u'Model was successfully updated.',
+    #                                '%(count)s models were successfully updated.',
+    #                                count,
+    #                                count=count))
+    #     except Exception, exc:
+    #         flash(gettext(u'Failed to delete models. %(error)s', error=exc.message.decode('utf8')), 'error')
+    #
