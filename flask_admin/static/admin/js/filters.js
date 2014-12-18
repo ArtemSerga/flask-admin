@@ -1,3 +1,16 @@
+var params = {
+    width: 'resolve',
+    escapeMarkup: function(m) {
+        // Do not escape HTML in the select options text
+        return m;
+    },
+    matcher: function(term, text) {
+        // Search the term in the formatted text
+        return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
+    }
+}
+
+
 var AdminFilters = function(element, filtersElement, filterGroups) {
     var $root = $(element);
     var $container = $('.filters', $root);
@@ -66,7 +79,7 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
             $('<td/>').append($select)
         );
 
-        $select.select2({width: 'resolve'});
+        $select.select2(params);
 
         // Input
         var filter = subfilters[0];
@@ -83,7 +96,7 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
             });
 
             $el.append($('<td/>').append($field));
-            $field.select2({width: 'resolve'});
+            $field.select2(params);
         } else
         {
             $field = $('<input type="text" class="filter-val form-control" />')
