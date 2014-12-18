@@ -153,7 +153,7 @@ class FilterManyToOne(BaseSQLAFilter):
         if display_field:
             self.options = [
                 (str(id), label)
-                for id, label in query.values('id', display_field)
+                for id, label in query.values(self.parent_model.id, display_field)
             ]
         else:
             self.options = [
