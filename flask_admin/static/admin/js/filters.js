@@ -104,9 +104,8 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
     }
 
     $('a.filter', filtersElement).click(function() {
-        var name = ($(this).text().trim !== undefined ? $(this).text().trim() : $(this).text().replace(/^\s+|\s+$/g,''));
-
-        addFilter(name, filterGroups[name]);
+        var id = $(this).data('id');
+        addFilter($(this).html(), filterGroups[id]);
 
         $('button', $root).show();
 

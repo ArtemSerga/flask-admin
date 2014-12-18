@@ -608,18 +608,21 @@ class BaseModelView(BaseView, ActionsMixin):
         self._filters = self.get_filters()
 
         if self._filters:
-            self._filter_groups = OrderedDict()
+            self._filter_names = OrderedDict()
+            self._filter_groups = {}
             self._filter_args = {}
 
             for i, flt in enumerate(self._filters):
-                if flt.name not in self._filter_groups:
-                    self._filter_groups[flt.name] = []
+                id = hash(flt.name)
+                if id not in self._filter_groups:
+                    self._filter_names[id] = flt.name
+                    self._filter_groups[id] = []
                 data = (
                     self._serialize_filter_data(i, flt)
                     if flt.cache_enabled
                     else lazy(self._serialize_filter_data)(i, flt)
                 )
-                self._filter_groups[flt.name].append(data)
+                self._filter_groups[id].append(data)
                 # self._filter_groups[flt.name].append({
                 #     'index': i,
                 #     'arg': self.get_filter_arg(i, flt),
@@ -629,6 +632,7 @@ class BaseModelView(BaseView, ActionsMixin):
                 # })
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
+            self._filter_names = None
             self._filter_groups = None
             self._filter_args = None
 
@@ -1310,10 +1314,10 @@ class BaseModelView(BaseView, ActionsMixin):
 
         # Process Lazy filters
         if self._filter_groups:
-            for name, filters_list in self._filter_groups.items():
+            for id, filters_list in self._filter_groups.items():
                 for i, flt in enumerate(filters_list):
                     if not isinstance(flt, dict):
-                        self._filter_groups[name][i] = flt()
+                        self._filter_groups[id][i] = flt()
 
         return self.render(self.list_template,
                                data=data,
@@ -1340,6 +1344,7 @@ class BaseModelView(BaseView, ActionsMixin):
                                search=view_args.search,
                                # Filters
                                filters=self._filters,
+                               filter_names=self._filter_names,
                                filter_groups=self._filter_groups,
                                active_filters=view_args.filters,
 
