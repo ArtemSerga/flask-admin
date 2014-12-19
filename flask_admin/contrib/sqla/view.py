@@ -725,6 +725,18 @@ class ModelView(BaseModelView):
 
         return None
 
+    def apply_filters_to_query(self, query, filters):
+        pass
+
+    def apply_search_to_query(self, search, query):
+        """
+        :param query:
+        :param search:
+            Search query
+        :return:
+        """
+        pass
+
     def get_list(self, page, sort_column, sort_desc, search, filters, execute=True):
         """
             Return models from the database.

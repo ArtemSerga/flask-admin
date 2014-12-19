@@ -104,11 +104,9 @@ class ActionsMixin(object):
         """
         action = request.form.get('action')
         ids = request.form.getlist('rowid')
-
         handler = self._actions_data.get(action)
-
         if handler and self.is_action_allowed(action):
-            response = handler[0](ids)
+            response = handler[0](ids, query)
 
             if response is not None:
                 return response

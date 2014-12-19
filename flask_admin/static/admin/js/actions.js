@@ -1,12 +1,6 @@
 var AdminModelActions = function(actionErrorMessage, actionConfirmations) {
     // Actions helpers. TODO: Move to separate file
     this.execute = function(name) {
-        var selected = $('input.action-checkbox:checked').size();
-
-        if (selected === 0) {
-            alert(actionErrorMessage);
-            return false;
-        }
 
         var msg = actionConfirmations[name];
 
@@ -18,10 +12,17 @@ var AdminModelActions = function(actionErrorMessage, actionConfirmations) {
         var form = $('#action_form');
         $('#action', form).val(name);
 
-        $('input.action-checkbox', form).remove();
-        $('input.action-checkbox:checked').each(function() {
-            form.append($(this).clone());
-        });
+        var selected_ids_amount = $('input.action-checkbox:checked').size();
+        if (selected_ids_amount > 0) {
+            $('input.action-checkbox', form).remove();
+            $('input.action-checkbox:checked').each(function() {
+                form.append($(this).clone());
+            });
+        } else {
+
+            alert(actionErrorMessage);
+            return false;
+        }
 
         form.submit();
 

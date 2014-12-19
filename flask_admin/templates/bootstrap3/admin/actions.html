@@ -1,7 +1,10 @@
 {% import 'admin/static.html' as admin_static with context %}
 
 {% macro dropdown(actions, btn_class='btn dropdown-toggle') -%}
-    <a class="{{ btn_class }}" data-toggle="dropdown" href="javascript:void(0)">{{ _gettext('With selected') }}<b class="caret"></b></a>
+    <a class="{{ btn_class }}" data-toggle="dropdown" href="javascript:void(0)">
+        {{ _gettext('Actions') }}
+        <b class="caret"></b>
+    </a>
     <ul class="dropdown-menu">
         {% for p in actions %}
         <li>
@@ -18,9 +21,13 @@
     {% if actions %}
     <form id="action_form" action="{{ url }}" method="POST" style="display: none">
         {% if csrf_token %}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         {% endif %}
         <input type="hidden" id="action" name="action" />
+
+        {% for key, value in request.args.items() %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}"/>
+        {% endfor %}
     </form>
     {% endif %}
 {% endmacro %}

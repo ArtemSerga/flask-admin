@@ -1126,11 +1126,11 @@ class BaseModelView(BaseView, ActionsMixin):
         return gettext('There are no items in the table.')
 
     # URL generation helpers
-    def _get_list_filter_args(self):
+    def _get_list_filter_args(self, args):
         if self._filters:
             filters = []
 
-            for n in request.args:
+            for n in args:
                 if not n.startswith('flt'):
                     continue
 
@@ -1152,15 +1152,17 @@ class BaseModelView(BaseView, ActionsMixin):
 
         return None
 
-    def _get_list_extra_args(self):
+    def _get_list_extra_args(self, args):
         """
             Return arguments from query string.
         """
-        return ViewArgs(page=request.args.get('page', 0, type=int),
-                        sort=request.args.get('sort', None, type=int),
-                        sort_desc=request.args.get('desc', None, type=int),
-                        search=request.args.get('search', None),
-                        filters=self._get_list_filter_args())
+        return ViewArgs(
+            page=args.get('page', 0, type=int),
+            sort=args.get('sort', None, type=int),
+            sort_desc=args.get('desc', None, type=int),
+            search=args.get('search', None),
+            filters=self._get_list_filter_args(args),
+        )
 
     # URL generation helpers
     def _get_list_url(self, view_args):
@@ -1299,12 +1301,6 @@ class BaseModelView(BaseView, ActionsMixin):
 
         # Actions
         actions, actions_confirmation = self.get_actions_list()
-
-        clear_search_url = self._get_list_url(view_args.clone(page=0,
-                                                              sort=view_args.sort,
-                                                              sort_desc=view_args.sort_desc,
-                                                              search=None,
-                                                              filters=None))
 
         clear_search_url = self._get_list_url(view_args.clone(page=0,
                                                               sort=view_args.sort,
