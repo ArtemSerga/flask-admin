@@ -13,6 +13,14 @@
           width: 'resolve',
           minimumInputLength: 1,
           placeholder: 'data-placeholder',
+          escapeMarkup: function(m) {
+            // Do not escape HTML in the select options text
+            return m;
+          },
+          matcher: function(term, text) {
+            // Search the term in the formatted text
+            return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
+          },
           ajax: {
             url: $el.attr('data-url'),
             data: function(term, page) {

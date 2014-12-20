@@ -1,4 +1,4 @@
-var params = {
+var options = {
     width: 'resolve',
     escapeMarkup: function(m) {
         // Do not escape HTML in the select options text
@@ -79,7 +79,7 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
             $('<td/>').append($select)
         );
 
-        $select.select2(params);
+        $select.select2(options);
 
         // Input
         var filter = subfilters[0];
@@ -96,7 +96,7 @@ var AdminFilters = function(element, filtersElement, filterGroups) {
             });
 
             $el.append($('<td/>').append($field));
-            $field.select2(params);
+            $field.select2(options);
         } else
         {
             $field = $('<input type="text" class="filter-val form-control" />')
