@@ -1267,7 +1267,7 @@ class BaseModelView(BaseView, ActionsMixin):
             List view
         """
         # Grab parameters from URL
-        view_args = self._get_list_extra_args()
+        view_args = self._get_list_extra_args(request.args)
 
         # Map column index to column name
         sort_column = self._get_column_by_idx(view_args.sort)
