@@ -8,293 +8,472 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  Flask-Admin\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2012-11-09 03:54+0200\n"
+"POT-Creation-Date: 2014-12-20 16:14+0200\n"
 "PO-Revision-Date: 2012-04-11 18:48+0200\n"
 "Last-Translator: Serge S. Koval <serge.koval+github@gmail.com>\n"
 "Language-Team: \n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 0.9.6\n"
-"X-Poedit-Language: Russian\n"
-"X-Poedit-Country: RUSSIAN FEDERATION\n"
-"X-Poedit-SourceCharset: utf-8\n"
+"Generated-By: Babel 1.3\n"
 
-#: ../flask_admin/base.py:283
+#: flask_admin/base.py:398
 msgid "Home"
 msgstr "Главная"
 
-#: ../flask_admin/form.py:83
-msgid "Invalid time format"
-msgstr "Неправильный формат времени."
-
-#: ../flask_admin/contrib/fileadmin.py:33
+#: flask_admin/contrib/fileadmin.py:33
 msgid "Invalid directory name"
 msgstr "Недопустимое имя директории"
 
-#: ../flask_admin/contrib/fileadmin.py:41
+#: flask_admin/contrib/fileadmin.py:41
 msgid "File to upload"
 msgstr "Файл"
 
-#: ../flask_admin/contrib/fileadmin.py:50
+#: flask_admin/contrib/fileadmin.py:50
 msgid "File required."
 msgstr "Необходимо выбрать файл"
 
-#: ../flask_admin/contrib/fileadmin.py:55
+#: flask_admin/contrib/fileadmin.py:55
 msgid "Invalid file type."
 msgstr "Недопустимый тип файла."
 
-#: ../flask_admin/contrib/fileadmin.py:365
-msgid "File uploading is disabled."
-msgstr "Заливка файлов запрещена."
+#: flask_admin/contrib/fileadmin.py:59
+#, fuzzy
+msgid "Content"
+msgstr "содержит"
 
-#: ../flask_admin/contrib/fileadmin.py:374
+#: flask_admin/contrib/fileadmin.py:424
 #, python-format
 msgid "File \"%(name)s\" already exists."
 msgstr "Файл с именем \"%(name)s\" уже существует."
 
-#: ../flask_admin/contrib/fileadmin.py:381
+#: flask_admin/contrib/fileadmin.py:443 flask_admin/contrib/fileadmin.py:506
+#: flask_admin/contrib/fileadmin.py:559 flask_admin/contrib/fileadmin.py:596
+#: flask_admin/contrib/fileadmin.py:639 flask_admin/contrib/fileadmin.py:687
+msgid "Permission denied."
+msgstr ""
+
+#: flask_admin/contrib/fileadmin.py:502
+msgid "File uploading is disabled."
+msgstr "Заливка файлов запрещена."
+
+#: flask_admin/contrib/fileadmin.py:515
 #, python-format
 msgid "Failed to save file: %(error)s"
 msgstr "Ошибка сохранения файла: %(error)s"
 
-#: ../flask_admin/contrib/fileadmin.py:400
+#: flask_admin/contrib/fileadmin.py:555
 msgid "Directory creation is disabled."
 msgstr "Создание новых директорий запрещено."
 
-#: ../flask_admin/contrib/fileadmin.py:410
+#: flask_admin/contrib/fileadmin.py:570
 #, python-format
 msgid "Failed to create directory: %(error)s"
 msgstr "Ошибка создания директории: %(error)s"
 
-#: ../flask_admin/contrib/fileadmin.py:432
+#: flask_admin/contrib/fileadmin.py:592
 msgid "Deletion is disabled."
 msgstr "Удаление запрещено."
 
-#: ../flask_admin/contrib/fileadmin.py:437
+#: flask_admin/contrib/fileadmin.py:601
 msgid "Directory deletion is disabled."
 msgstr "Удаление директорий запрещено."
 
-#: ../flask_admin/contrib/fileadmin.py:442
-#, python-format
-msgid "Directory \"%s\" was successfully deleted."
+#: flask_admin/contrib/fileadmin.py:607
+#, fuzzy, python-format
+msgid "Directory \"%(path)s\" was successfully deleted."
 msgstr "Директория \"%s\" была удалена."
 
-#: ../flask_admin/contrib/fileadmin.py:444
+#: flask_admin/contrib/fileadmin.py:609
 #, python-format
 msgid "Failed to delete directory: %(error)s"
 msgstr "Ошибка удаления директории: %(error)s"
 
-#: ../flask_admin/contrib/fileadmin.py:448
-#: ../flask_admin/contrib/fileadmin.py:511
+#: flask_admin/contrib/fileadmin.py:614 flask_admin/contrib/fileadmin.py:753
 #, python-format
 msgid "File \"%(name)s\" was successfully deleted."
 msgstr "Файл \"%(name)s\" был удален."
 
-#: ../flask_admin/contrib/fileadmin.py:450
-#: ../flask_admin/contrib/fileadmin.py:513
+#: flask_admin/contrib/fileadmin.py:616 flask_admin/contrib/fileadmin.py:755
 #, python-format
 msgid "Failed to delete file: %(name)s"
 msgstr "Ошибка удаления файла: %(name)s"
 
-#: ../flask_admin/contrib/fileadmin.py:469
+#: flask_admin/contrib/fileadmin.py:635
 msgid "Renaming is disabled."
 msgstr "Переименование запрещено."
 
-#: ../flask_admin/contrib/fileadmin.py:473
+#: flask_admin/contrib/fileadmin.py:643
 msgid "Path does not exist."
 msgstr "Путь не существует."
 
-#: ../flask_admin/contrib/fileadmin.py:484
+#: flask_admin/contrib/fileadmin.py:655
 #, python-format
 msgid "Successfully renamed \"%(src)s\" to \"%(dst)s\""
 msgstr "\"%(src)s\" был переименован в \"%(dst)s\""
 
-#: ../flask_admin/contrib/fileadmin.py:487
+#: flask_admin/contrib/fileadmin.py:658
 #, python-format
 msgid "Failed to rename: %(error)s"
 msgstr "Ошибка переименования: %(error)s"
 
-#: ../flask_admin/contrib/fileadmin.py:503
-#: ../flask_admin/contrib/peewee/view.py:355
-#: ../flask_admin/contrib/sqla/view.py:680
+#: flask_admin/contrib/fileadmin.py:703
+#, python-format
+msgid "Error saving changes to %(name)s."
+msgstr ""
+
+#: flask_admin/contrib/fileadmin.py:707
+#, fuzzy, python-format
+msgid "Changes to %(name)s saved successfully."
+msgstr "Файл \"%(name)s\" был удален."
+
+#: flask_admin/contrib/fileadmin.py:714
+#, python-format
+msgid "Error reading %(name)s."
+msgstr ""
+
+#: flask_admin/contrib/fileadmin.py:717 flask_admin/contrib/fileadmin.py:726
+#, python-format
+msgid "Unexpected error while reading from %(name)s"
+msgstr ""
+
+#: flask_admin/contrib/fileadmin.py:723
+#, python-format
+msgid "Cannot edit %(name)s."
+msgstr ""
+
+#: flask_admin/contrib/fileadmin.py:740
+#: flask_admin/contrib/mongoengine/view.py:599
+#: flask_admin/contrib/peewee/view.py:406
+#: flask_admin/contrib/pymongo/view.py:343 flask_admin/contrib/sqla/view.py:948
 msgid "Delete"
 msgstr "Удалить"
 
-#: ../flask_admin/contrib/fileadmin.py:504
+#: flask_admin/contrib/fileadmin.py:741
 msgid "Are you sure you want to delete these files?"
 msgstr "Вы уверены что хотите удалить эти файлы?"
 
-#: ../flask_admin/contrib/peewee/filters.py:35
-#: ../flask_admin/contrib/sqla/filters.py:35
+#: flask_admin/contrib/fileadmin.py:744
+#, fuzzy
+msgid "File deletion is disabled."
+msgstr "Удаление запрещено."
+
+#: flask_admin/contrib/fileadmin.py:757
+msgid "Edit"
+msgstr ""
+
+#: flask_admin/contrib/rediscli.py:125
+msgid "Cli: Invalid command."
+msgstr ""
+
+#: flask_admin/contrib/mongoengine/filters.py:36
+#: flask_admin/contrib/peewee/filters.py:35
+#: flask_admin/contrib/pymongo/filters.py:38
+#: flask_admin/contrib/sqla/filters.py:39
+#: flask_admin/contrib/sqla/filters.py:136 flask_admin/contrib/sqla/view.py:804
 msgid "equals"
 msgstr "равно"
 
-#: ../flask_admin/contrib/peewee/filters.py:43
-#: ../flask_admin/contrib/sqla/filters.py:43
+#: flask_admin/contrib/mongoengine/filters.py:45
+#: flask_admin/contrib/peewee/filters.py:43
+#: flask_admin/contrib/pymongo/filters.py:47
+#: flask_admin/contrib/sqla/filters.py:47
 msgid "not equal"
 msgstr "не равно"
 
-#: ../flask_admin/contrib/peewee/filters.py:52
-#: ../flask_admin/contrib/sqla/filters.py:52
+#: flask_admin/contrib/mongoengine/filters.py:55
+#: flask_admin/contrib/peewee/filters.py:52
+#: flask_admin/contrib/pymongo/filters.py:57
+#: flask_admin/contrib/sqla/filters.py:56
 msgid "contains"
 msgstr "содержит"
 
-#: ../flask_admin/contrib/peewee/filters.py:61
-#: ../flask_admin/contrib/sqla/filters.py:61
+#: flask_admin/contrib/mongoengine/filters.py:65
+#: flask_admin/contrib/peewee/filters.py:61
+#: flask_admin/contrib/pymongo/filters.py:67
+#: flask_admin/contrib/sqla/filters.py:65
 msgid "not contains"
 msgstr "не содержит"
 
-#: ../flask_admin/contrib/peewee/filters.py:69
-#: ../flask_admin/contrib/sqla/filters.py:69
+#: flask_admin/contrib/mongoengine/filters.py:74
+#: flask_admin/contrib/peewee/filters.py:69
+#: flask_admin/contrib/pymongo/filters.py:76
+#: flask_admin/contrib/sqla/filters.py:73
 msgid "greater than"
 msgstr "больше чем"
 
-#: ../flask_admin/contrib/peewee/filters.py:77
-#: ../flask_admin/contrib/sqla/filters.py:77
+#: flask_admin/contrib/mongoengine/filters.py:83
+#: flask_admin/contrib/peewee/filters.py:77
+#: flask_admin/contrib/pymongo/filters.py:85
+#: flask_admin/contrib/sqla/filters.py:81
 msgid "smaller than"
 msgstr "меньше чем"
 
-#: ../flask_admin/contrib/peewee/view.py:317
-#: ../flask_admin/contrib/sqla/view.py:627
+#: flask_admin/contrib/mongoengine/view.py:493
+#, fuzzy, python-format
+msgid "Failed to get model. %(error)s"
+msgstr "Ошибка удаления записи: %(error)s"
+
+#: flask_admin/contrib/mongoengine/view.py:512
+#: flask_admin/contrib/peewee/view.py:357
+#: flask_admin/contrib/pymongo/view.py:278 flask_admin/contrib/sqla/view.py:880
 #, python-format
 msgid "Failed to create model. %(error)s"
 msgstr "Ошибка создания записи: %(error)s"
 
-#: ../flask_admin/contrib/peewee/view.py:332
-#: ../flask_admin/contrib/sqla/view.py:647
+#: flask_admin/contrib/mongoengine/view.py:538
+#: flask_admin/contrib/peewee/view.py:376
+#: flask_admin/contrib/pymongo/view.py:303 flask_admin/contrib/sqla/view.py:906
 #, python-format
 msgid "Failed to update model. %(error)s"
 msgstr "Ошибка обновления записи: %(error)s"
 
-#: ../flask_admin/contrib/peewee/view.py:342
-#: ../flask_admin/contrib/sqla/view.py:666
+#: flask_admin/contrib/mongoengine/view.py:562
+#: flask_admin/contrib/peewee/view.py:392
+#: flask_admin/contrib/pymongo/view.py:329 flask_admin/contrib/sqla/view.py:932
 #, python-format
 msgid "Failed to delete model. %(error)s"
 msgstr "Ошибка удаления записи: %(error)s"
 
-#: ../flask_admin/contrib/peewee/view.py:356
-#: ../flask_admin/contrib/sqla/view.py:681
+#: flask_admin/contrib/mongoengine/view.py:600
+#: flask_admin/contrib/peewee/view.py:407
+#: flask_admin/contrib/pymongo/view.py:344 flask_admin/contrib/sqla/view.py:949
 msgid "Are you sure you want to delete selected models?"
 msgstr "Вы уверены что хотите удалить ?"
 
+#: flask_admin/contrib/mongoengine/view.py:609
+#: flask_admin/contrib/peewee/view.py:423
+#: flask_admin/contrib/pymongo/view.py:354 flask_admin/contrib/sqla/view.py:965
+#, fuzzy, python-format
+msgid "Model was successfully deleted."
+msgid_plural "%(count)s models were successfully deleted."
+msgstr[0] "Запись была создана."
+msgstr[1] ""
+msgstr[2] ""
 
-#: ../flask_admin/contrib/sqla/validators.py:33
+#: flask_admin/contrib/mongoengine/view.py:615
+#: flask_admin/contrib/peewee/view.py:429
+#: flask_admin/contrib/pymongo/view.py:359 flask_admin/contrib/sqla/view.py:973
+#, fuzzy, python-format
+msgid "Failed to delete models. %(error)s"
+msgstr "Ошибка удаления записи: %(error)s"
+
+#: flask_admin/contrib/sqla/fields.py:123
+#: flask_admin/contrib/sqla/fields.py:173
+#: flask_admin/contrib/sqla/fields.py:178 flask_admin/model/fields.py:164
+#: flask_admin/model/fields.py:213
+msgid "Not a valid choice"
+msgstr ""
+
+#: flask_admin/contrib/sqla/validators.py:38
 msgid "Already exists."
 msgstr "Уже существует."
 
-#: ../flask_admin/model/base.py:869
+#: flask_admin/contrib/sqla/view.py:859
+#, python-format
+msgid "Integrity error. %(message)s"
+msgstr ""
+
+#: flask_admin/form/fields.py:89
+msgid "Invalid time format"
+msgstr "Неправильный формат времени."
+
+#: flask_admin/form/fields.py:133
+msgid "Invalid Choice: could not coerce"
+msgstr ""
+
+#: flask_admin/form/upload.py:187
+#, fuzzy
+msgid "Invalid file extension"
+msgstr "Недопустимый тип файла."
+
+#: flask_admin/model/base.py:1126
+msgid "There are no items in the table."
+msgstr ""
+
+#: flask_admin/model/base.py:1375
 msgid "Model was successfully created."
 msgstr "Запись была создана."
 
-#: ../flask_admin/model/base.py:1268
+#: flask_admin/model/base.py:1412
 msgid "Model was successfully saved."
 msgstr "Запись была сохранена."
 
-#: ../flask_admin/model/filters.py:82
+#: flask_admin/model/filters.py:94
 msgid "Yes"
 msgstr "Да"
 
-#: ../flask_admin/model/filters.py:83
+#: flask_admin/model/filters.py:95
 msgid "No"
 msgstr "Нет"
 
-#: ../flask_admin/templates/admin/actions.html:3
+#: flask_admin/templates/bootstrap2/admin/actions.html:4
 msgid "With selected"
 msgstr "С выбранным"
 
-#: ../flask_admin/templates/admin/lib.html:117
+#: flask_admin/templates/bootstrap2/admin/lib.html:156
+#: flask_admin/templates/bootstrap3/admin/lib.html:149
 msgid "Submit"
 msgstr "Отправить"
 
-#: ../flask_admin/templates/admin/lib.html:122
+#: flask_admin/templates/bootstrap2/admin/lib.html:161
+#: flask_admin/templates/bootstrap3/admin/lib.html:154
 msgid "Cancel"
 msgstr "Отмена"
 
-#: ../flask_admin/templates/admin/file/list.html:8
+#: flask_admin/templates/bootstrap2/admin/file/edit.html:5
+#: flask_admin/templates/bootstrap3/admin/file/edit.html:5
+#, python-format
+msgid "You are editing %(path)s"
+msgstr ""
+
+#: flask_admin/templates/bootstrap2/admin/file/list.html:9
+#: flask_admin/templates/bootstrap3/admin/file/list.html:9
 msgid "Root"
 msgstr "Корень"
 
-#: ../flask_admin/templates/admin/file/list.html:55
+#: flask_admin/templates/bootstrap2/admin/file/list.html:62
+#: flask_admin/templates/bootstrap3/admin/file/list.html:62
 #, python-format
 msgid "Are you sure you want to delete \\'%(name)s\\' recursively?"
 msgstr "Вы уверены что хотите рекурсивно удалить \\'%(name)s\\'?"
 
-#: ../flask_admin/templates/admin/file/list.html:63
+#: flask_admin/templates/bootstrap2/admin/file/list.html:70
+#: flask_admin/templates/bootstrap3/admin/file/list.html:70
 #, python-format
 msgid "Are you sure you want to delete \\'%(name)s\\'?"
 msgstr "Вы уверены что хотите удалить \\'%(name)s\\'?"
 
-#: ../flask_admin/templates/admin/file/list.html:90
+#: flask_admin/templates/bootstrap2/admin/file/list.html:105
+#: flask_admin/templates/bootstrap3/admin/file/list.html:105
 msgid "Upload File"
 msgstr "Залить файл"
 
-#: ../flask_admin/templates/admin/file/list.html:95
+#: flask_admin/templates/bootstrap2/admin/file/list.html:110
+#: flask_admin/templates/bootstrap3/admin/file/list.html:110
 msgid "Create Directory"
 msgstr "Создать директорию"
 
-#: ../flask_admin/templates/admin/file/list.html:109
+#: flask_admin/templates/bootstrap2/admin/file/list.html:127
+#: flask_admin/templates/bootstrap3/admin/file/list.html:127
 msgid "Please select at least one file."
 msgstr "Выберите по крайней мере один файл."
 
-#: ../flask_admin/templates/admin/file/rename.html:5
+#: flask_admin/templates/bootstrap2/admin/file/rename.html:5
+#: flask_admin/templates/bootstrap3/admin/file/rename.html:5
 #, python-format
 msgid "Please provide new name for %(name)s"
 msgstr "Введите новое имя для %(name)s"
 
-#: ../flask_admin/templates/admin/model/create.html:12
-#: ../flask_admin/templates/admin/model/list.html:13
-msgid "List"
-msgstr "Список"
-
-#: ../flask_admin/templates/admin/model/create.html:15
-#: ../flask_admin/templates/admin/model/list.html:17
-msgid "Create"
-msgstr "Создать"
-
-#: ../flask_admin/templates/admin/model/create.html:20
+#: flask_admin/templates/bootstrap2/admin/model/create.html:5
+#: flask_admin/templates/bootstrap3/admin/model/create.html:5
 msgid "Save and Add"
 msgstr "Сохранить и Добавить"
 
-#: ../flask_admin/templates/admin/model/edit.html:6
+#: flask_admin/templates/bootstrap2/admin/model/create.html:16
+#: flask_admin/templates/bootstrap2/admin/model/list.html:18
+#: flask_admin/templates/bootstrap3/admin/model/create.html:17
+#: flask_admin/templates/bootstrap3/admin/model/list.html:16
+msgid "List"
+msgstr "Список"
+
+#: flask_admin/templates/bootstrap2/admin/model/create.html:19
+#: flask_admin/templates/bootstrap2/admin/model/list.html:22
+#: flask_admin/templates/bootstrap3/admin/model/create.html:20
+#: flask_admin/templates/bootstrap3/admin/model/list.html:20
+msgid "Create"
+msgstr "Создать"
+
+#: flask_admin/templates/bootstrap2/admin/model/edit.html:5
+#: flask_admin/templates/bootstrap3/admin/model/edit.html:5
 msgid "Save and Continue"
 msgstr "Сохранить и Продолжить"
 
-#: ../flask_admin/templates/admin/model/inline_form_list.html:24
+#: flask_admin/templates/bootstrap2/admin/model/inline_list_base.html:10
+#: flask_admin/templates/bootstrap3/admin/model/inline_list_base.html:10
 msgid "Delete?"
 msgstr "Удалить?"
 
-#: ../flask_admin/templates/admin/model/inline_form_list.html:32
+#: flask_admin/templates/bootstrap2/admin/model/inline_list_base.html:33
+#: flask_admin/templates/bootstrap3/admin/model/inline_list_base.html:33
 msgid "Add"
 msgstr "Добавить"
 
-#: ../flask_admin/templates/admin/model/list.html:24
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:3
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:3
 msgid "Add Filter"
 msgstr "Добавить Фильтр"
 
-#: ../flask_admin/templates/admin/model/list.html:51
-msgid "Search"
-msgstr "Поиск"
-
-#: ../flask_admin/templates/admin/model/list.html:64
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:17
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:28
 msgid "Apply"
 msgstr "Применить"
 
-#: ../flask_admin/templates/admin/model/list.html:66
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:19
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:30
 msgid "Reset Filters"
 msgstr "Сброс Фильтров"
 
-#: ../flask_admin/templates/admin/model/list.html:74
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:30
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:41
 msgid "Remove Filter"
 msgstr "Убрать Фильтр"
 
-#: ../flask_admin/templates/admin/model/list.html:149
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:73
+#: flask_admin/templates/bootstrap2/admin/model/layout.html:80
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:82
+#: flask_admin/templates/bootstrap3/admin/model/layout.html:89
+msgid "Search"
+msgstr "Поиск"
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:22
+#: flask_admin/templates/bootstrap3/admin/model/list.html:20
+#, fuzzy
+msgid "Create new record"
+msgstr "Создать директорию"
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:59
+#: flask_admin/templates/bootstrap3/admin/model/list.html:56
+msgid "Select all records"
+msgstr ""
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:70
+#: flask_admin/templates/bootstrap2/admin/model/list.html:79
+#: flask_admin/templates/bootstrap3/admin/model/list.html:67
+#: flask_admin/templates/bootstrap3/admin/model/list.html:76
+#, python-format
+msgid "Sort by %(name)s"
+msgstr ""
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:101
+#: flask_admin/templates/bootstrap3/admin/model/list.html:98
+#, fuzzy
+msgid "Select record"
+msgstr "С выбранным"
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:108
+#: flask_admin/templates/bootstrap3/admin/model/list.html:105
+msgid "Edit record"
+msgstr ""
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:117
+#: flask_admin/templates/bootstrap3/admin/model/list.html:114
 msgid "You sure you want to delete this item?"
 msgstr "Вы уверены что хотите удалить эту запись?"
 
-#: ../flask_admin/templates/admin/model/list.html:173
+#: flask_admin/templates/bootstrap2/admin/model/list.html:117
+#, fuzzy
+msgid "Delete record"
+msgstr "Создать директорию"
+
+#: flask_admin/templates/bootstrap2/admin/model/list.html:164
+#: flask_admin/templates/bootstrap3/admin/model/list.html:150
 msgid "Please select at least one model."
 msgstr "Выберите по крайней мере одну запись."
+
+#: flask_admin/templates/bootstrap3/admin/actions.html:5
+msgid "Actions"
+msgstr "Действия"
 
