@@ -1,4 +1,15 @@
 (function() {
+    var defaultOptions = {
+      width: 'resolve',
+      escapeMarkup: function(m) {
+        // Do not escape HTML in the select options text
+        return m;
+      },
+      matcher: function(term, text) {
+        // Search the term in the formatted text
+        return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
+      }
+    }
     var AdminForm = function() {
       // Field converters
       var fieldConverters = [];
@@ -8,19 +19,9 @@
       */
       function processAjaxWidget($el, name) {
         var multiple = $el.attr('data-multiple') == '1';
-
-        var opts = {
-          width: 'resolve',
+        var options = $.extend({}, defaultOptions, {
           minimumInputLength: 1,
           placeholder: 'data-placeholder',
-          escapeMarkup: function(m) {
-            // Do not escape HTML in the select options text
-            return m;
-          },
-          matcher: function(term, text) {
-            // Search the term in the formatted text
-            return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
-          },
           ajax: {
             url: $el.attr('data-url'),
             data: function(term, page) {
@@ -67,14 +68,14 @@
 
             callback(result);
           }
-        };
+        });
 
         if ($el.attr('data-allow-blank'))
-          opts['allowClear'] = true;
+          options['allowClear'] = true;
 
-        opts['multiple'] = multiple;
+        options['multiple'] = multiple;
 
-        $el.select2(opts);
+        $el.select2(options);
       }
 
       /**
@@ -94,21 +95,19 @@
 
         switch (name) {
             case 'select2':
-                var opts = {
-                    width: 'resolve'
-                };
+                var options = $.extend({}, defaultOptions);
 
                 if ($el.attr('data-allow-blank'))
-                    opts['allowClear'] = true;
+                    options['allowClear'] = true;
 
                 if ($el.attr('data-tags')) {
-                    $.extend(opts, {
+                    $.extend(options, {
                         tokenSeparators: [','],
                         tags: []
                     });
                 }
 
-                $el.select2(opts);
+                $el.select2(options);
                 return true;
             case 'select2-ajax':
                 processAjaxWidget($el, name);
