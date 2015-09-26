@@ -6,11 +6,11 @@ from bson.errors import InvalidId
 
 from flask import flash
 
-from flask.ext.admin._compat import string_types
-from flask.ext.admin.babel import gettext, ngettext, lazy_gettext
-from flask.ext.admin.model import BaseModelView
-from flask.ext.admin.actions import action
-from flask.ext.admin.helpers import get_form_data
+from flask_admin._compat import string_types
+from flask_admin.babel import gettext, ngettext, lazy_gettext
+from flask_admin.model import BaseModelView
+from flask_admin.actions import action
+from flask_admin.helpers import get_form_data
 
 from .filters import BasePyMongoFilter
 from .tools import parse_like_term
@@ -29,7 +29,7 @@ class ModelView(BaseModelView):
         Collection of the column filters.
 
         Should contain instances of
-        :class:`flask.ext.admin.contrib.pymongo.filters.BasePyMongoFilter`
+        :class:`flask_admin.contrib.pymongo.filters.BasePyMongoFilter`
         classes.
 
         For example::
@@ -59,9 +59,10 @@ class ModelView(BaseModelView):
             :param menu_icon_type:
                 Optional icon. Possible icon types:
 
-                 - `flask.ext.admin.consts.ICON_TYPE_GLYPH` - Bootstrap glyph icon
-                 - `flask.ext.admin.consts.ICON_TYPE_IMAGE` - Image relative to Flask static directory
-                 - `flask.ext.admin.consts.ICON_TYPE_IMAGE_URL` - Image with full URL
+                 - `flask_admin.consts.ICON_TYPE_GLYPH` - Bootstrap glyph icon
+                 - `flask_admin.consts.ICON_TYPE_FONT_AWESOME` - Font Awesome icon
+                 - `flask_admin.consts.ICON_TYPE_IMAGE` - Image relative to Flask static directory
+                 - `flask_admin.consts.ICON_TYPE_IMAGE_URL` - Image with full URL
             :param menu_icon_value:
                 Icon glyph name or URL, depending on `menu_icon_type` setting
         """
@@ -96,7 +97,7 @@ class ModelView(BaseModelView):
         """
             Scaffold list columns
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def scaffold_sortable_columns(self):
         """
@@ -126,7 +127,7 @@ class ModelView(BaseModelView):
             :param name:
                 Either field name or field instance
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def is_valid_filter(self, filter):
         """
@@ -138,7 +139,7 @@ class ModelView(BaseModelView):
         return isinstance(filter, BasePyMongoFilter)
 
     def scaffold_form(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _get_field_value(self, model, name):
         """
@@ -146,8 +147,44 @@ class ModelView(BaseModelView):
         """
         return model.get(name)
 
+    def _search(self, query, search_term):
+        values = search_term.split(' ')
+
+        queries = []
+
+        # Construct inner querie
+        for value in values:
+            if not value:
+                continue
+
+            regex = parse_like_term(value)
+
+            stmt = []
+            for field in self._search_fields:
+                stmt.append({field: {'$regex': regex}})
+
+            if stmt:
+                if len(stmt) == 1:
+                    queries.append(stmt[0])
+                else:
+                    queries.append({'$or': stmt})
+
+        # Construct final query
+        if queries:
+            if len(queries) == 1:
+                final = queries[0]
+            else:
+                final = {'$and': queries}
+
+            if query:
+                query = {'$and': [query, final]}
+            else:
+                query = final
+
+        return query
+
     def get_list(self, page, sort_column, sort_desc, search, filters,
-                 execute=True):
+                 execute=True, page_size=None):
         """
             Get list of objects from MongoEngine
 
@@ -163,6 +200,10 @@ class ModelView(BaseModelView):
                 List of applied fiters
             :param execute:
                 Run query immediately or not
+            :param page_size:
+                Number of results. Defaults to ModelView's page_size. Can be
+                overriden to change the page_size limit. Removing the page_size
+                limit requires setting page_size to 0 or False.
         """
         query = {}
 
@@ -170,7 +211,7 @@ class ModelView(BaseModelView):
         if self._filters:
             data = []
 
-            for flt, value in filters:
+            for flt, flt_name, value in filters:
                 f = self._filters[flt]
                 data = f.apply(data, value)
 
@@ -182,41 +223,10 @@ class ModelView(BaseModelView):
 
         # Search
         if self._search_supported and search:
-            values = search.split(' ')
-
-            queries = []
-
-            # Construct inner querie
-            for value in values:
-                if not value:
-                    continue
-
-                regex = parse_like_term(value)
-
-                stmt = []
-                for field in self._search_fields:
-                    stmt.append({field: {'$regex': regex}})
-
-                if stmt:
-                    if len(stmt) == 1:
-                        queries.append(stmt[0])
-                    else:
-                        queries.append({'$or': stmt})
-
-            # Construct final query
-            if queries:
-                if len(queries) == 1:
-                    final = queries[0]
-                else:
-                    final = {'$and': queries}
-
-                if query:
-                    query = {'$and': [query, final]}
-                else:
-                    query = final
+            query = self._search(query, search)
 
         # Get count
-        count = self.coll.find(query).count()
+        count = self.coll.find(query).count() if not self.simple_list_pager else None
 
         # Sorting
         sort_by = None
@@ -230,12 +240,15 @@ class ModelView(BaseModelView):
                 sort_by = [(order[0], pymongo.DESCENDING if order[1] else pymongo.ASCENDING)]
 
         # Pagination
-        skip = None
+        if page_size is None:
+            page_size = self.page_size
 
-        if page is not None:
-            skip = page * self.page_size
+        skip = 0
 
-        results = self.coll.find(query, sort=sort_by, skip=skip, limit=self.page_size)
+        if page and page_size:
+            skip = page * page_size
+
+        results = self.coll.find(query, sort=sort_by, skip=skip, limit=page_size)
 
         if execute:
             results = list(results)
@@ -275,14 +288,14 @@ class ModelView(BaseModelView):
             self._on_model_change(form, model, True)
             self.coll.insert(model)
         except Exception as ex:
-            flash(gettext('Failed to create model. %(error)s', error=str(ex)),
+            flash(gettext('Failed to create record. %(error)s', error=str(ex)),
                   'error')
-            log.exception('Failed to create model')
+            log.exception('Failed to create record.')
             return False
         else:
             self.after_model_change(form, model, True)
 
-        return True
+        return model
 
     def update_model(self, form, model):
         """
@@ -300,9 +313,9 @@ class ModelView(BaseModelView):
             pk = self.get_pk_value(model)
             self.coll.update({'_id': pk}, model)
         except Exception as ex:
-            flash(gettext('Failed to update model. %(error)s', error=str(ex)),
+            flash(gettext('Failed to update record. %(error)s', error=str(ex)),
                   'error')
-            log.exception('Failed to update model')
+            log.exception('Failed to update record.')
             return False
         else:
             self.after_model_change(form, model, False)
@@ -324,12 +337,15 @@ class ModelView(BaseModelView):
 
             self.on_model_delete(model)
             self.coll.remove({'_id': pk})
-            return True
         except Exception as ex:
-            flash(gettext('Failed to delete model. %(error)s', error=str(ex)),
+            flash(gettext('Failed to delete record. %(error)s', error=str(ex)),
                   'error')
-            log.exception('Failed to delete model')
+            log.exception('Failed to delete record.')
             return False
+        else:
+            self.after_model_delete(model)
+
+        return True
 
     # Default model actions
     def is_action_allowed(self, name):
@@ -341,7 +357,7 @@ class ModelView(BaseModelView):
 
     @action('delete',
             u'<span class="glyphicon glyphicon-trash"></span>%s' % lazy_gettext('Delete'),
-            lazy_gettext('Are you sure you want to delete selected models?'))
+            lazy_gettext('Are you sure you want to delete selected records?'))
     def action_delete(self, ids):
         try:
             count = 0
@@ -351,9 +367,9 @@ class ModelView(BaseModelView):
                 if self.delete_model(self.get_one(pk)):
                     count += 1
 
-            flash(ngettext('Model was successfully deleted.',
-                           '%(count)s models were successfully deleted.',
+            flash(ngettext('Record was successfully deleted.',
+                           '%(count)s records were successfully deleted.',
                            count,
                            count=count))
         except Exception as ex:
-            flash(gettext('Failed to delete models. %(error)s', error=str(ex)), 'error')
+            flash(gettext('Failed to delete records. %(error)s', error=str(ex)), 'error')

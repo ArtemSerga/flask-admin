@@ -1,10 +1,10 @@
 from flask import Flask, request, session
-from flask.ext.sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
 
-from flask.ext import admin
-from flask.ext.babelex import Babel
+import flask_admin as admin
+from flask_babelex import Babel
 
-from flask.ext.admin.contrib import sqla
+from flask_admin.contrib import sqla
 
 # Create application
 app = Flask(__name__)
@@ -67,6 +67,7 @@ def index():
 <p><a href="/admin/?lang=fr">Click me to get to Admin! (French)</a></p>
 <p><a href="/admin/?lang=pt">Click me to get to Admin! (Portuguese)</a></p>
 <p><a href="/admin/?lang=ru">Click me to get to Admin! (Russian)</a></p>
+<p><a href="/admin/?lang=pa">Click me to get to Admin! (Punjabi)</a></p>
 <p><a href="/admin/?lang=zh_CN">Click me to get to Admin! (Chinese - Simplified)</a></p>
 <p><a href="/admin/?lang=zh_TW">Click me to get to Admin! (Chinese - Traditional)</a></p>
 """
