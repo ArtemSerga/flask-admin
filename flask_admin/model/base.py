@@ -4,7 +4,7 @@ import csv
 import time
 
 from werkzeug import secure_filename
-
+from pprint import pprint
 from flask import (request, redirect, flash, abort, json, Response,
                    get_flashed_messages, stream_with_context)
 from jinja2 import contextfunction
@@ -740,8 +740,7 @@ class BaseModelView(BaseView, ActionsMixin):
             self._filter_args = {}
 
             for i, flt in enumerate(self._filters):
-                
-                
+
                 if flt.name not in self._filter_groups:
                     self._filter_groups[flt.name] = []
 
@@ -751,15 +750,6 @@ class BaseModelView(BaseView, ActionsMixin):
                     else lazy(self._serialize_filter_data)(i, flt)
                 )
                 self._filter_groups[flt.name].append(data)
-
-                # self._filter_groups[flt.name].append({
-                #     'index': i,
-                #     'arg': self.get_filter_arg(i, flt),
-                #     'operation': flt.operation(),
-                #     'options': flt.get_options(self) or None,
-                #     'type': flt.data_type
-                # })
-
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
             self._filter_groups = None
