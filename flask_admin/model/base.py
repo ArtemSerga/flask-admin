@@ -1056,7 +1056,7 @@ class BaseModelView(BaseView, ActionsMixin):
                 items = []
 
                 for item in value:
-                    copy = dict(item)
+                    copy = dict(item) if isinstance(item, dict) else item()
                     copy['operation'] = as_unicode(copy['operation'])
                     items.append(copy)
 

@@ -3,11 +3,9 @@
         {{ _gettext('Add Filter') }}<b class="caret"></b>
     </a>
     <ul class="dropdown-menu field-filters">
-        {% for id, name in filter_names.items() %}
+        {% for k in filter_groups %}
         <li>
-            <a class="filter" data-id="{{ id }}" href="javascript:void(0)" onclick="return false;">
-                {{ name | safe }}
-            </a>
+            <a href="javascript:void(0)" class="filter" onclick="return false;">{{ k }}</a>
         </li>
         {% endfor %}
     </ul>
