@@ -1771,14 +1771,15 @@ class BaseModelView(BaseView, ActionsMixin):
 
         clear_search_url = self._get_list_url(view_args.clone(page=0,
                                                               sort=view_args.sort,
-        #                                                       sort_desc=view_args.sort_desc,
+                                                              sort_desc=view_args.sort_desc,
+                                                              search=None,
+                                                              filters=None))
         # # Process Lazy filters
         # if self._filter_groups:
         #     for id, filters_list in self._filter_groups.items():
         #         for i, flt in enumerate(filters_list):
         #             if not isinstance(flt, dict):
         #                 self._filter_groups[id][i] = flt()
-        #                                                       filters=None))
 
         return self.render(
             self.list_template,
