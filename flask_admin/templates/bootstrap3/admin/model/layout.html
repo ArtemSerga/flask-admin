@@ -13,7 +13,7 @@
 
 {% macro hidden_args() %}
     {% for name, value in request.args.items() %}
-        {% if name not in ['page', 'search', 'sort', 'desc'] and not name.startswith('flt') %}
+        {% if name not in ['page', 'search', 'sort', 'desc'] %}
             <input type="hidden" name="{{ name }}" value="{{ value }}"/>
         {% endif %}
     {% endfor %}
