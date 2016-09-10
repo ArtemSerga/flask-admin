@@ -5,22 +5,19 @@ from sqlalchemy import Boolean, Column
 
 from flask_admin import form
 from flask_admin.model.form import (converts, ModelConverterBase,
-                                        InlineModelConverterBase, FieldPlaceholder)
+                                    InlineModelConverterBase, FieldPlaceholder)
 from flask_admin.model.fields import AjaxSelectField, AjaxSelectMultipleField
 from flask_admin.model.helpers import prettify_name
 from flask_admin._backwards import get_property
 from flask_admin._compat import iteritems
 
 from .validators import Unique
-from .fields import QuerySelectField, QuerySelectMultipleField, InlineModelFormList
-from .tools import has_multiple_pks, filter_foreign_columns
+from .fields import (QuerySelectField, QuerySelectMultipleField,
+                     InlineModelFormList, InlineHstoreList, HstoreForm)
+from flask_admin.model.fields import InlineFormField
+from .tools import (has_multiple_pks, filter_foreign_columns,
+                    get_field_with_path)
 from .ajax import create_ajax_loader
-
-try:
-    # Field has better input parsing capabilities.
-    from wtforms.ext.dateutil.fields import DateTimeField
-except ImportError:
-    from wtforms.fields import DateTimeField
 
 
 class AdminModelConverter(ModelConverterBase):
@@ -86,12 +83,6 @@ class AdminModelConverter(ModelConverterBase):
         if 'query_factory' not in kwargs:
             kwargs['query_factory'] = lambda: self.session.query(remote_model)
 
-        if 'widget' not in kwargs:
-            if multiple:
-                kwargs['widget'] = form.Select2Widget(multiple=True)
-            else:
-                kwargs['widget'] = form.Select2Widget()
-
         if multiple:
             return QuerySelectMultipleField(**kwargs)
         else:
@@ -151,6 +142,10 @@ class AdminModelConverter(ModelConverterBase):
         if field_args:
             kwargs.update(field_args)
 
+        if kwargs['validators']:
+            # Create a copy of the list since we will be modifying it.
+            kwargs['validators'] = list(kwargs['validators'])
+
         # Check if it is relation or property
         if hasattr(prop, 'direction'):
             # remote_model = prop.mapper.class_
@@ -195,127 +190,125 @@ class AdminModelConverter(ModelConverterBase):
             #                     widget=form.Select2Widget(multiple=True),
             #                     **kwargs)
             return self._convert_relation(prop, kwargs)
-        else:
-            # Ignore pk/fk
-            if hasattr(prop, 'columns'):
-                # Check if more than one column mapped to the property
-                if len(prop.columns) > 1:
-                    columns = filter_foreign_columns(model.__table__, prop.columns)
+        elif hasattr(prop, 'columns'):  # Ignore pk/fk
+            # Check if more than one column mapped to the property
+            if len(prop.columns) > 1:
+                columns = filter_foreign_columns(model.__table__, prop.columns)
 
-                    if len(columns) > 1:
-                        warnings.warn('Can not convert multiple-column properties (%s.%s)' % (model, prop.key))
+                if len(columns) > 1:
+                    warnings.warn('Can not convert multiple-column properties (%s.%s)' % (model, prop.key))
+                    return None
+
+                column = columns[0]
+            else:
+                # Grab column
+                column = prop.columns[0]
+
+            form_columns = getattr(self.view, 'form_columns', None) or ()
+
+            # Do not display foreign keys - use relations, except when explicitly instructed
+            if column.foreign_keys and prop.key not in form_columns:
+                return None
+
+            # Only display "real" columns
+            if not isinstance(column, Column):
+                return None
+
+            unique = False
+
+            if column.primary_key:
+                if hidden_pk:
+                    # If requested to add hidden field, show it
+                    return fields.HiddenField()
+                else:
+                    # By default, don't show primary keys either
+                    # If PK is not explicitly allowed, ignore it
+                    if prop.key not in form_columns:
                         return None
 
-                    column = columns[0]
-                else:
-                    # Grab column
-                    column = prop.columns[0]
+                    # Current Unique Validator does not work with multicolumns-pks
+                    if not has_multiple_pks(model):
+                        kwargs['validators'].append(Unique(self.session,
+                                                           model,
+                                                           column))
+                        unique = True
 
-                form_columns = getattr(self.view, 'form_columns', None) or ()
+            # If field is unique, validate it
+            if column.unique and not unique:
+                kwargs['validators'].append(Unique(self.session,
+                                                   model,
+                                                   column))
 
-                # Do not display foreign keys - use relations, except when explicitly instructed
-                if column.foreign_keys and prop.key not in form_columns:
-                    return None
+            optional_types = getattr(self.view, 'form_optional_types', (Boolean,))
 
-                # Only display "real" columns
-                if not isinstance(column, Column):
-                    return None
+            if (
+                not column.nullable
+                and not isinstance(column.type, optional_types)
+                and not column.default
+                and not column.server_default
+            ):
+                kwargs['validators'].append(validators.InputRequired())
 
-                unique = False
+            # Apply label and description if it isn't inline form field
+            if self.view.model == mapper.class_:
+                kwargs['label'] = self._get_label(prop.key, kwargs)
+                kwargs['description'] = self._get_description(prop.key, kwargs)
 
-                if column.primary_key:
-                    if hidden_pk:
-                        # If requested to add hidden field, show it
-                        return fields.HiddenField()
-                    else:
-                        # By default, don't show primary keys either
-                        # If PK is not explicitly allowed, ignore it
-                        if prop.key not in form_columns:
-                            return None
+            # Figure out default value
+            default = getattr(column, 'default', None)
+            value = None
 
-                        # Current Unique Validator does not work with multicolumns-pks
-                        if not has_multiple_pks(model):
-                            kwargs['validators'].append(Unique(self.session,
-                                                               model,
-                                                               column))
-                            unique = True
-
-                # If field is unique, validate it
-                if column.unique and not unique:
-                    kwargs['validators'].append(Unique(self.session,
-                                                       model,
-                                                       column))
-
-                optional_types = getattr(self.view, 'form_optional_types', (Boolean,))
-
-                if (
-                    not column.nullable
-                    and not isinstance(column.type, optional_types)
-                    and not column.default
-                    and not column.server_default
-                ):
-                    kwargs['validators'].append(validators.InputRequired())
-
-                # Apply label and description if it isn't inline form field
-                if self.view.model == mapper.class_:
-                    kwargs['label'] = self._get_label(prop.key, kwargs)
-                    kwargs['description'] = self._get_description(prop.key, kwargs)
-
-                # Figure out default value
-                default = getattr(column, 'default', None)
-                value = None
-
-                if default is not None:
-                    value = getattr(default, 'arg', None)
-
-                    if value is not None:
-                        if getattr(default, 'is_callable', False):
-                            value = lambda: default.arg(None)
-                        else:
-                            if not getattr(default, 'is_scalar', True):
-                                value = None
+            if default is not None:
+                value = getattr(default, 'arg', None)
 
                 if value is not None:
-                    kwargs['default'] = value
+                    if getattr(default, 'is_callable', False):
+                        value = lambda: default.arg(None)
+                    else:
+                        if not getattr(default, 'is_scalar', True):
+                            value = None
 
-                # Check nullable
-                if column.nullable:
-                    kwargs['validators'].append(validators.Optional())
+            if value is not None:
+                kwargs['default'] = value
 
-                # Override field type if necessary
-                override = self._get_field_override(prop.key)
-                if override:
-                    return override(**kwargs)
+            # Check nullable
+            if column.nullable:
+                kwargs['validators'].append(validators.Optional())
 
-                # Check choices
-                form_choices = getattr(self.view, 'form_choices', None)
+            # Override field type if necessary
+            override = self._get_field_override(prop.key)
+            if override:
+                return override(**kwargs)
 
-                if mapper.class_ == self.view.model and form_choices:
-                    choices = form_choices.get(column.key)
-                    if choices:
-                        return form.Select2Field(
-                            choices=choices,
-                            allow_blank=column.nullable,
-                            **kwargs
-                        )
+            # Check choices
+            form_choices = getattr(self.view, 'form_choices', None)
 
-                # Run converter
-                converter = self.get_converter(column)
+            if mapper.class_ == self.view.model and form_choices:
+                choices = form_choices.get(column.key)
+                if choices:
+                    return form.Select2Field(
+                        choices=choices,
+                        allow_blank=column.nullable,
+                        **kwargs
+                    )
 
-                if converter is None:
-                    return None
+            # Run converter
+            converter = self.get_converter(column)
 
-                return converter(model=model, mapper=mapper, prop=prop,
-                                 column=column, field_args=kwargs)
+            if converter is None:
+                return None
+
+            return converter(model=model, mapper=mapper, prop=prop,
+                             column=column, field_args=kwargs)
 
         return None
 
     @classmethod
     def _string_common(cls, column, field_args, **extra):
-        if column.type.length:
+        if isinstance(column.type.length, int) and column.type.length:
             field_args['validators'].append(validators.Length(max=column.type.length))
 
-    @converts('String', 'Unicode')
+    @converts('String')  # includes VARCHAR, CHAR, and Unicode
     def conv_String(self, column, field_args, **extra):
         if hasattr(column.type, 'enums'):
             accepted_values = list(column.type.enums)
@@ -338,8 +331,7 @@ class AdminModelConverter(ModelConverterBase):
         self._string_common(column=column, field_args=field_args, **extra)
         return fields.StringField(**field_args)
 
-    @converts('Text', 'UnicodeText',
-              'sqlalchemy.types.LargeBinary', 'sqlalchemy.types.Binary')
+    @converts('Text', 'LargeBinary', 'Binary')  # includes UnicodeText
     def conv_Text(self, field_args, **extra):
         self._string_common(field_args=field_args, **extra)
         return fields.TextAreaField(**field_args)
@@ -353,7 +345,7 @@ class AdminModelConverter(ModelConverterBase):
         field_args['widget'] = form.DatePickerWidget()
         return fields.DateField(**field_args)
 
-    @converts('DateTime')
+    @converts('DateTime')  # includes TIMESTAMP
     def convert_datetime(self, field_args, **extra):
         return form.DateTimeField(**field_args)
 
@@ -361,38 +353,32 @@ class AdminModelConverter(ModelConverterBase):
     def convert_time(self, field_args, **extra):
         return form.TimeField(**field_args)
 
-    @converts('Integer', 'SmallInteger')
+    @converts('Integer')  # includes BigInteger and SmallInteger
     def handle_integer_types(self, column, field_args, **extra):
         unsigned = getattr(column.type, 'unsigned', False)
         if unsigned:
             field_args['validators'].append(validators.NumberRange(min=0))
         return fields.IntegerField(**field_args)
 
-    @converts('Numeric', 'Float')
+    @converts('Numeric')  # includes DECIMAL, Float/FLOAT, REAL, and DOUBLE
     def handle_decimal_types(self, column, field_args, **extra):
-        places = getattr(column.type, 'scale', 2)
-        if places is not None:
-            field_args['places'] = places
+        # override default decimal places limit, use database defaults instead
+        field_args.setdefault('places', None)
         return fields.DecimalField(**field_args)
 
-    @converts('databases.mysql.MSYear')
-    def conv_MSYear(self, field_args, **extra):
-        field_args['validators'].append(validators.NumberRange(min=1901, max=2155))
-        return fields.StringField(**field_args)
-
-    @converts('databases.postgres.PGInet', 'dialects.postgresql.base.INET')
+    @converts('sqlalchemy.dialects.postgresql.base.INET')
     def conv_PGInet(self, field_args, **extra):
         field_args.setdefault('label', u'IP Address')
         field_args['validators'].append(validators.IPAddress())
         return fields.StringField(**field_args)
 
-    @converts('dialects.postgresql.base.MACADDR')
+    @converts('sqlalchemy.dialects.postgresql.base.MACADDR')
     def conv_PGMacaddr(self, field_args, **extra):
         field_args.setdefault('label', u'MAC Address')
         field_args['validators'].append(validators.MacAddress())
         return fields.StringField(**field_args)
 
-    @converts('dialects.postgresql.base.UUID')
+    @converts('sqlalchemy.dialects.postgresql.base.UUID')
     def conv_PGUuid(self, field_args, **extra):
         field_args.setdefault('label', u'UUID')
         field_args['validators'].append(validators.UUID())
@@ -401,6 +387,15 @@ class AdminModelConverter(ModelConverterBase):
     @converts('sqlalchemy.dialects.postgresql.base.ARRAY')
     def conv_ARRAY(self, field_args, **extra):
         return form.Select2TagsField(save_as_list=True, **field_args)
+
+    @converts('HSTORE')
+    def conv_HSTORE(self, field_args, **extra):
+        inner_form = field_args.pop('form', HstoreForm)
+        return InlineHstoreList(InlineFormField(inner_form), **field_args)
+
+    @converts('JSON')
+    def convert_JSON(self, field_args, **extra):
+        return form.JSONField(**field_args)
 
 
 def _resolve_prop(prop):
@@ -457,28 +452,26 @@ def get_form(model, converter,
     properties = ((p.key, p) for p in mapper.iterate_properties)
 
     if only:
-        props = dict(properties)
-
         def find(name):
             # If field is in extra_fields, it has higher priority
             if extra_fields and name in extra_fields:
-                return FieldPlaceholder(extra_fields[name])
+                return name, FieldPlaceholder(extra_fields[name])
 
-            # Try to look it up in properties list first
-            p = props.get(name)
+            column, path = get_field_with_path(model, name)
 
-            if p is not None:
-                return p
+            if path and not hasattr(column.prop, 'direction'):
+                raise Exception("form column is located in another table and "
+                                "requires inline_models: {0}".format(name))
 
-            # If it is hybrid property or alias, look it up in a model itself
-            p = getattr(model, name, None)
-            if p is not None and hasattr(p, 'property'):
-                return p.property
+            name = column.key
+
+            if column is not None and hasattr(column, 'property'):
+                return name, column.property
 
             raise ValueError('Invalid model property name %s.%s' % (model, name))
 
         # Filter properties while maintaining property order in 'only' list
-        properties = ((x, find(x)) for x in only)
+        properties = (find(x) for x in only)
     elif exclude:
         properties = (x for x in properties if x[0] not in exclude)
 
@@ -607,7 +600,8 @@ class InlineModelConverter(InlineModelConverterBase):
         info = self.get_info(inline_model)
 
         # Find property from target model to current model
-        target_mapper = info.model._sa_class_manager.mapper
+        # Use the base mapper to support inheritance
+        target_mapper = info.model._sa_class_manager.mapper.base_mapper
 
         reverse_prop = None
 
@@ -652,6 +646,7 @@ class InlineModelConverter(InlineModelConverterBase):
         if child_form is None:
             child_form = get_form(info.model,
                                   converter,
+                                  base_class=info.form_base_class or form.BaseForm,
                                   only=info.form_columns,
                                   exclude=exclude,
                                   field_args=info.form_args,

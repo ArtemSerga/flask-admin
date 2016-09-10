@@ -1,31 +1,37 @@
 import warnings
 import re
 import csv
+import mimetypes
 import time
+from math import ceil
 
 from werkzeug import secure_filename
-from pprint import pprint
-from flask import (request, redirect, flash, abort, json, Response,
-                   get_flashed_messages, stream_with_context)
+
+from flask import (current_app, request, redirect, flash, abort, json,
+                   Response, get_flashed_messages, stream_with_context)
 from jinja2 import contextfunction
+try:
+    import tablib
+except ImportError:
+    tablib = None
 from wtforms.fields import HiddenField
 from wtforms.fields.core import UnboundField
-from wtforms.validators import ValidationError, Required
+from wtforms.validators import ValidationError, InputRequired
 
 from flask_admin.babel import gettext
 
 from flask_admin.base import BaseView, expose
 from flask_admin.form import BaseForm, FormOpts, rules
-from flask_admin.model import filters, typefmt
+from flask_admin.model import filters, typefmt, template
 from flask_admin.actions import ActionsMixin
 from flask_admin.helpers import (get_form_data, validate_form_on_submit,
                                  get_redirect_target, flash_errors)
 from flask_admin.tools import rec_getattr
 from flask_admin._backwards import ObsoleteAttr
-from flask_admin._compat import iteritems, OrderedDict, as_unicode, csv_encode
+from flask_admin._compat import (iteritems, itervalues, OrderedDict,
+                                 as_unicode, csv_encode, text_type)
 from .helpers import prettify_name, get_mdict_item_or_list
 from .ajax import AjaxModelLoader
-from .fields import ListEditableFieldList
 
 # Used to generate filter query string name
 filter_char_re = re.compile('[^a-z0-9 ]')
@@ -70,6 +76,30 @@ def lazy(func):
         wrapped.__name__ = "lazy-" + func.__name__
         return wrapped
     return lazyfunc
+
+
+class FilterGroup(object):
+    def __init__(self, label):
+        self.label = label
+        self.filters = []
+
+    def append(self, filter):
+        self.filters.append(filter)
+
+    def non_lazy(self):
+        filters = []
+        for item in self.filters:
+            copy = dict(item)
+            copy['operation'] = as_unicode(copy['operation'])
+            options = copy['options']
+            if options:
+                copy['options'] = [(k, text_type(v)) for k, v in options]
+
+            filters.append(copy)
+        return as_unicode(self.label), filters
+
+    def __iter__(self):
+        return iter(self.filters)
 
 
 class BaseModelView(BaseView, ActionsMixin):
@@ -152,6 +182,15 @@ class BaseModelView(BaseView, ActionsMixin):
 
             class MyModelView(BaseModelView):
                 column_list = ('name', 'last_name', 'email')
+
+        (Added in 1.4.0) SQLAlchemy model attributes can be used instead of strings::
+
+            class MyModelView(BaseModelView):
+                column_list = ('name', User.last_name)
+
+        When using SQLAlchemy models, you can reference related columns like this::
+            class MyModelView(BaseModelView):
+                column_list = ('<relationship>.<related column name>',)
     """
 
     column_exclude_list = ObsoleteAttr('column_exclude_list',
@@ -415,6 +454,38 @@ class BaseModelView(BaseView, ActionsMixin):
         Controls if the primary key should be displayed in the list view.
     """
 
+    column_display_actions = True
+    """
+        Controls the display of the row actions (edit, delete, details, etc.)
+        column in the list view.
+
+        Useful for preventing a blank column from displaying if your view does
+        not use any build-in or custom row actions.
+
+        This column is not hidden automatically due to backwards compatibility.
+
+        Note: This only affects display and does not control whether the row
+        actions endpoints are accessible.
+    """
+
+    column_extra_row_actions = None
+    """
+        List of row actions (instances of :class:`~flask_admin.model.template.BaseListRowAction`).
+
+        Flask-Admin will generate standard per-row actions (edit, delete, etc)
+        and will append custom actions from this list right after them.
+
+        For example::
+
+            from flask_admin.model.template import EndpointLinkRowAction, LinkRowAction
+
+            class MyModelView(BaseModelView):
+                column_extra_row_actions = [
+                    LinkRowAction('glyphicon glyphicon-off', 'http://direct.link/?id={row_id}'),
+                    EndpointLinkRowAction('glyphicon glyphicon-test', 'my_view.index_view')
+                ]
+    """
+
     simple_list_pager = False
     """
         Enable or disable simple list pager.
@@ -439,7 +510,7 @@ class BaseModelView(BaseView, ActionsMixin):
     """
         Base form class. Will be used by form scaffolding function when creating model form.
 
-        Useful if you want to have custom contructor or override some fields.
+        Useful if you want to have custom constructor or override some fields.
 
         Example::
 
@@ -459,10 +530,10 @@ class BaseModelView(BaseView, ActionsMixin):
 
         Example::
 
-            from wtforms.validators import required
+            from wtforms.validators import DataRequired
             class MyModelView(BaseModelView):
                 form_args = dict(
-                    name=dict(label='First Name', validators=[required()])
+                    name=dict(label='First Name', validators=[DataRequired()])
                 )
     """
 
@@ -475,6 +546,15 @@ class BaseModelView(BaseView, ActionsMixin):
 
             class MyModelView(BaseModelView):
                 form_columns = ('name', 'email')
+
+        (Added in 1.4.0) SQLAlchemy model attributes can be used instead of
+        strings::
+
+            class MyModelView(BaseModelView):
+                form_columns = ('name', User.last_name)
+
+        SQLA Note: Model attributes must be on the same model as your ModelView
+        or you will need to use `inline_models`.
     """
 
     form_excluded_columns = ObsoleteAttr('form_excluded_columns',
@@ -488,11 +568,6 @@ class BaseModelView(BaseView, ActionsMixin):
             class MyModelView(BaseModelView):
                 form_excluded_columns = ('last_name', 'email')
     """
-
-    """
-        Collection of the model field names for the form for updating multiple rows at once.
-    """
-    form_multiple_update_columns = None
 
     form_overrides = None
     """
@@ -516,6 +591,9 @@ class BaseModelView(BaseView, ActionsMixin):
                     'description': {
                         'rows': 10,
                         'style': 'color: black'
+                    },
+                    'other_field': {
+                        'disabled': True
                     }
                 }
 
@@ -640,6 +718,15 @@ class BaseModelView(BaseView, ActionsMixin):
         Unlimited by default. Uses `page_size` if set to `None`.
     """
 
+    export_types = ['csv']
+    """
+        A list of available export filetypes. `csv` only is default, but any
+        filetypes supported by tablib can be used.
+
+        Check tablib for https://github.com/kennethreitz/tablib/blob/master/README.rst
+        for supported types.
+    """
+
     # Various settings
     page_size = 20
     """
@@ -659,9 +746,7 @@ class BaseModelView(BaseView, ActionsMixin):
             :param category:
                 View category
             :param endpoint:
-                Base endpoint. If not provided, will use the model name + 'view'.
-                For example if model name was 'User', endpoint will be
-                'userview'
+                Base endpoint. If not provided, will use the model name.
             :param url:
                 Base URL. If not provided, will use endpoint as a URL.
             :param menu_class_name:
@@ -736,7 +821,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         if self._filters:
             self._filter_names = OrderedDict()
-            self._filter_groups = {}
+            self._filter_groups = OrderedDict()
             self._filter_args = {}
 
             for i, flt in enumerate(self._filters):
@@ -784,12 +869,10 @@ class BaseModelView(BaseView, ActionsMixin):
         self._sortable_columns = self.get_sortable_columns()
 
         # Details view
-        if self.can_view_details:
-            self._details_columns = self.get_details_columns()
+        self._details_columns = self.get_details_columns()
 
         # Export view
-        if self.can_export:
-            self._export_columns = self.get_export_columns()
+        self._export_columns = self.get_export_columns()
 
         # Labels
         if self.column_labels is None:
@@ -866,62 +949,89 @@ class BaseModelView(BaseView, ActionsMixin):
         else:
             return self._prettify_name(field)
 
+    def get_list_row_actions(self):
+        """
+            Return list of row action objects, each is instance of :class:`~flask_admin.model.template.BaseListRowAction`
+        """
+        actions = []
+
+        if self.can_view_details:
+            if self.details_modal:
+                actions.append(template.ViewPopupRowAction())
+            else:
+                actions.append(template.ViewRowAction())
+
+        if self.can_edit:
+            if self.edit_modal:
+                actions.append(template.EditPopupRowAction())
+            else:
+                actions.append(template.EditRowAction())
+
+        if self.can_delete:
+            actions.append(template.DeleteRowAction())
+
+        return actions + (self.column_extra_row_actions or [])
+
+    def get_column_names(self, only_columns, excluded_columns):
+        """
+            Returns a list of tuples with the model field name and formatted
+            field name.
+
+            :param only_columns:
+                List of columns to include in the results. If not set,
+                `scaffold_list_columns` will generate the list from the model.
+            :param excluded_columns:
+                List of columns to exclude from the results if `only_columns`
+                is not set.
+        """
+        if excluded_columns:
+            only_columns = [c for c in only_columns if c not in excluded_columns]
+
+        return [(c, self.get_column_name(c)) for c in only_columns]
+
     def get_list_columns(self):
         """
-            Returns a list of the model field names. If `column_list` was
-            set, returns it. Otherwise calls `scaffold_list_columns`
-            to generate the list from the model.
+            Uses `get_column_names` to get a list of tuples with the model
+            field name and formatted name for the columns in `column_list`
+            and not in `column_exclude_list`. If `column_list` is not set,
+            the columns from `scaffold_list_columns` will be used.
         """
-        columns = self.column_list
-
-        if columns is None:
-            columns = self.scaffold_list_columns()
-
-            # Filter excluded columns
-            if self.column_exclude_list:
-                columns = [c for c in columns if c not in self.column_exclude_list]
-
-        return [(c, self.get_column_name(c)) for c in columns]
+        return self.get_column_names(
+            only_columns=self.column_list or self.scaffold_list_columns(),
+            excluded_columns=self.column_exclude_list,
+        )
 
     def get_details_columns(self):
         """
-            Returns a list of the model field names in the details view. If
-            `column_details_list` was set, returns it. Otherwise calls
-            `scaffold_list_columns` to generate the list from the model.
+            Uses `get_column_names` to get a list of tuples with the model
+            field name and formatted name for the columns in `column_details_list`
+            and not in `column_details_exclude_list`. If `column_details_list`
+            is not set, it will attempt to use the columns from `column_list`
+            or finally the columns from `scaffold_list_columns` will be used.
         """
-        columns = self.column_details_list
+        only_columns = (self.column_details_list or self.column_list or
+                        self.scaffold_list_columns())
 
-        if columns is None:
-            columns = self.scaffold_list_columns()
-
-            # Filter excluded columns
-            if self.column_details_exclude_list:
-                columns = [c for c in columns
-                           if c not in self.column_details_exclude_list]
-
-        return [(c, self.get_column_name(c)) for c in columns]
+        return self.get_column_names(
+            only_columns=only_columns,
+            excluded_columns=self.column_details_exclude_list,
+        )
 
     def get_export_columns(self):
         """
-            Returns a list of the model field names in the export view. If
-            `column_export_list` was set, returns it. Otherwise, if
-            `column_list` was set, returns it. Otherwise calls
-            `scaffold_list_columns` to generate the list from the model.
+            Uses `get_column_names` to get a list of tuples with the model
+            field name and formatted name for the columns in `column_export_list`
+            and not in `column_export_exclude_list`. If `column_export_list` is
+            not set, it will attempt to use the columns from `column_list`
+            or finally the columns from `scaffold_list_columns` will be used.
         """
-        columns = self.column_export_list
+        only_columns = (self.column_export_list or self.column_list or
+                        self.scaffold_list_columns())
 
-        if columns is None:
-            columns = self.column_list
-
-            if columns is None:
-                columns = self.scaffold_list_columns()
-
-            # Filter excluded columns
-            if self.column_export_exclude_list:
-                columns = [c for c in columns
-                           if c not in self.column_export_exclude_list]
-
-        return [(c, self.get_column_name(c)) for c in columns]
+        return self.get_column_names(
+            only_columns=only_columns,
+            excluded_columns=self.column_export_exclude_list,
+        )
 
     def scaffold_sortable_columns(self):
         """
@@ -1028,7 +1138,15 @@ class BaseModelView(BaseView, ActionsMixin):
                 Filter instance
         """
         if self.named_filter_urls:
-            name = ('%s %s' % (flt.name, as_unicode(flt.operation()))).lower()
+            operation = flt.operation()
+
+            try:
+                # get lazy string original value
+                operation = operation._args[0]
+            except AttributeError:
+                pass
+
+            name = ('%s %s' % (flt.name, as_unicode(operation))).lower()
             name = filter_char_re.sub('', name)
             name = filter_compact_re.sub('_', name)
             return name
@@ -1042,14 +1160,8 @@ class BaseModelView(BaseView, ActionsMixin):
         if self._filter_groups:
             results = OrderedDict()
 
-            for key, value in iteritems(self._filter_groups):
-                items = []
-
-                for item in value:
-                    copy = dict(item) if isinstance(item, dict) else item()
-                    copy['operation'] = as_unicode(copy['operation'])
-                    items.append(copy)
-
+            for group in itervalues(self._filter_groups):
+                key, items = group.non_lazy()
                 results[key] = items
 
             return results
@@ -1064,17 +1176,16 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         raise NotImplementedError('Please implement scaffold_form method')
 
-    def scaffold_list_form(self, custom_fieldlist=ListEditableFieldList,
-                           validators=None):
+    def scaffold_list_form(self, widget=None, validators=None):
         """
             Create form for the `index_view` using only the columns from
             `self.column_editable_list`.
 
+            :param widget:
+                WTForms widget class. Defaults to `XEditableWidget`.
             :param validators:
                 `form_args` dict with only validators
-                {'name': {'validators': [required()]}}
-            :param custom_fieldlist:
-                A WTForm FieldList class. By default, `ListEditableFieldList`.
+                {'name': {'validators': [DataRequired()]}}
 
             Must be implemented in the child class.
         """
@@ -1102,7 +1213,6 @@ class BaseModelView(BaseView, ActionsMixin):
 
             Allows overriding the editable list view field/widget. For example::
 
-                from flask_admin.model.fields import ListEditableFieldList
                 from flask_admin.model.widgets import XEditableWidget
 
                 class CustomWidget(XEditableWidget):
@@ -1114,12 +1224,9 @@ class BaseModelView(BaseView, ActionsMixin):
 
                         return kwargs
 
-                class CustomFieldList(ListEditableFieldList):
-                    widget = CustomWidget()
-
                 class MyModelView(BaseModelView):
                     def get_list_form(self):
-                        return self.scaffold_list_form(CustomFieldList)
+                        return self.scaffold_list_form(widget=CustomWidget)
         """
         if self.form_args:
             # get only validators, other form_args can break FieldList wrapper
@@ -1156,7 +1263,7 @@ class BaseModelView(BaseView, ActionsMixin):
             Override to implement customized behavior.
         """
         class DeleteForm(self.form_base_class):
-            id = HiddenField(validators=[Required()])
+            id = HiddenField(validators=[InputRequired()])
             url = HiddenField()
 
         return DeleteForm
@@ -1360,8 +1467,11 @@ class BaseModelView(BaseView, ActionsMixin):
     # Exception handler
     def handle_view_exception(self, exc):
         if isinstance(exc, ValidationError):
-            flash(as_unicode(exc))
+            flash(as_unicode(exc), 'error')
             return True
+
+        if current_app.config.get('ADMIN_RAISE_ON_VIEW_EXCEPTION'):
+            raise
 
         if self._debug:
             raise
@@ -1371,7 +1481,7 @@ class BaseModelView(BaseView, ActionsMixin):
     # Model event handlers
     def on_model_change(self, form, model, is_created):
         """
-            Perform some actions after a model is created or updated.
+            Perform some actions before a model is created or updated.
 
             Called from create_model and update_model in the same transaction
             (if it has any meaning for a store backend).
@@ -1543,9 +1653,9 @@ class BaseModelView(BaseView, ActionsMixin):
                     value = request.args[n]
 
                     if flt.validate(value):
-                        filters.append((pos, (idx, flt.name, value)))
+                        filters.append((pos, (idx, as_unicode(flt.name), value)))
                     else:
-                        flash(gettext('Invalid Filter Value: %(value)s', value=value))
+                        flash(gettext('Invalid Filter Value: %(value)s', value=value), 'error')
 
             # Sort filters
             return [v[1] for v in sorted(filters, key=lambda n: n[0])]
@@ -1679,6 +1789,15 @@ class BaseModelView(BaseView, ActionsMixin):
             self.column_type_formatters_export,
         )
 
+    def get_export_name(self, export_type='csv'):
+        """
+        :return: The exported csv file name.
+        """
+        filename = '%s_%s.%s' % (self.name,
+                                 time.strftime("%Y-%m-%d_%H-%M-%S"),
+                                 export_type)
+        return filename
+
     # AJAX references
     def _process_ajax_references(self):
         """
@@ -1710,11 +1829,6 @@ class BaseModelView(BaseView, ActionsMixin):
         """
             List view
         """
-        if self.column_editable_list:
-            form = self.list_form()
-        else:
-            form = None
-
         if self.can_delete:
             delete_form = self.delete_form()
         else:
@@ -1732,13 +1846,18 @@ class BaseModelView(BaseView, ActionsMixin):
         count, data = self.get_list(view_args.page, sort_column, view_args.sort_desc,
                                     view_args.search, view_args.filters)
 
+        list_forms = {}
+        if self.column_editable_list:
+            for row in data:
+                list_forms[self.get_pk_value(row)] = self.list_form(obj=row)
+
         # Calculate number of pages
-        if count is not None:
-            num_pages = count // self.page_size
-            if count % self.page_size != 0:
-                num_pages += 1
+        if count is not None and self.page_size:
+            num_pages = int(ceil(count / float(self.page_size)))
+        elif not self.page_size:
+            num_pages = 0  # hide pager for unlimited page_size
         else:
-            num_pages = None
+            num_pages = None  # use simple pager
 
         # Various URL generation helpers
         def pager_url(p):
@@ -1774,13 +1893,14 @@ class BaseModelView(BaseView, ActionsMixin):
         return self.render(
             self.list_template,
             data=data,
-            form=form,
+            list_forms=list_forms,
             delete_form=delete_form,
 
             # List
             list_columns=self._list_columns,
             sortable_columns=self._sortable_columns,
             editable_columns=self.column_editable_list,
+            list_row_actions=self.get_list_row_actions(),
 
             # Pagination
             count=count,
@@ -1813,9 +1933,6 @@ class BaseModelView(BaseView, ActionsMixin):
             get_pk_value=self.get_pk_value,
             get_value=self.get_list_value,
             return_url=self._get_list_url(view_args),
-            
-            multiple_update_form=self.scaffold_multiple_update_form()() if self.form_multiple_update_columns else None,
-            
         )
 
     @expose('/new/', methods=('GET', 'POST'))
@@ -1837,7 +1954,7 @@ class BaseModelView(BaseView, ActionsMixin):
             # in later versions, this is the model itself
             model = self.create_model(form)
             if model:
-                flash(gettext('Record was successfully created.'))
+                flash(gettext('Record was successfully created.'), 'success')
                 if '_add_another' in request.form:
                     return redirect(request.url)
                 elif '_continue_editing' in request.form:
@@ -1881,7 +1998,7 @@ class BaseModelView(BaseView, ActionsMixin):
         model = self.get_one(id)
 
         if model is None:
-            flash(gettext('Record does not exist.'))
+            flash(gettext('Record does not exist.'), 'error')
             return redirect(return_url)
 
         form = self.edit_form(obj=model)
@@ -1890,7 +2007,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
         if self.validate_form(form):
             if self.update_model(form, model):
-                flash(gettext('Record was successfully saved.'))
+                flash(gettext('Record was successfully saved.'), 'success')
                 if '_add_another' in request.form:
                     return redirect(self.get_url('.create_view', url=return_url))
                 elif '_continue_editing' in request.form:
@@ -1933,7 +2050,7 @@ class BaseModelView(BaseView, ActionsMixin):
         model = self.get_one(id)
 
         if model is None:
-            flash(gettext('Record does not exist.'))
+            flash(gettext('Record does not exist.'), 'error')
             return redirect(return_url)
 
         if self.details_modal and request.args.get('modal'):
@@ -1945,7 +2062,6 @@ class BaseModelView(BaseView, ActionsMixin):
                            model=model,
                            details_columns=self._details_columns,
                            get_value=self.get_list_value,
-                           get_pk_value=self.get_pk_value,
                            return_url=return_url)
 
     @expose('/delete/', methods=('POST',))
@@ -1961,18 +2077,18 @@ class BaseModelView(BaseView, ActionsMixin):
         form = self.delete_form()
 
         if self.validate_form(form):
-             # id is Required()
+             # id is InputRequired()
             id = form.id.data
 
             model = self.get_one(id)
 
             if model is None:
-                flash(gettext('Record does not exist.'))
+                flash(gettext('Record does not exist.'), 'error')
                 return redirect(return_url)
 
             # message is flashed from within delete_model if it fails
             if self.delete_model(model):
-                flash(gettext('Record was successfully deleted.'))
+                flash(gettext('Record was successfully deleted.'), 'success')
                 return redirect(return_url)
         else:
             flash_errors(form, message='Failed to delete record. %(error)s')
@@ -1986,25 +2102,20 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         return self.handle_action()
 
-    @expose('/export/csv/')
-    def export_csv(self):
-        """
-            Export a CSV of records.
-        """
-        return_url = get_redirect_target() or self.get_url('.index_view')
-
-        if not self.can_export:
-            flash(gettext('Permission denied.'))
-            return redirect(return_url)
-
+    def _export_data(self):
         # Macros in column_formatters are not supported.
         # Macros will have a function name 'inner'
         # This causes non-macro functions named 'inner' not work.
-        for col, func in iteritems(self.column_formatters):
+        for col, func in iteritems(self.column_formatters_export):
+            # skip checking columns not being exported
+            if col not in [col for col, _ in self._export_columns]:
+                continue
+
             if func.__name__ == 'inner':
                 raise NotImplementedError(
-                    'Macros not implemented. Override with '
-                    'column_formatters_export. Column: %s' % (col,)
+                    'Macros are not implemented in export. Exclude column in'
+                    ' column_formatters_export, column_export_list, or '
+                    ' column_export_exclude_list. Column: %s' % (col,)
                 )
 
         # Grab parameters from URL
@@ -2019,6 +2130,27 @@ class BaseModelView(BaseView, ActionsMixin):
         count, data = self.get_list(0, sort_column, view_args.sort_desc,
                                     view_args.search, view_args.filters,
                                     page_size=self.export_max_rows)
+
+        return count, data
+
+    @expose('/export/<export_type>/')
+    def export(self, export_type):
+        return_url = get_redirect_target() or self.get_url('.index_view')
+
+        if not self.can_export or (export_type not in self.export_types):
+            flash(gettext('Permission denied.'), 'error')
+            return redirect(return_url)
+
+        if export_type == 'csv':
+            return self._export_csv(return_url)
+        else:
+            return self._export_tablib(export_type, return_url)
+
+    def _export_csv(self, return_url):
+        """
+            Export a CSV of records as a stream.
+        """
+        count, data = self._export_data()
 
         # https://docs.djangoproject.com/en/1.8/howto/outputting-csv/
         class Echo(object):
@@ -2045,8 +2177,7 @@ class BaseModelView(BaseView, ActionsMixin):
                         for c in self._export_columns]
                 yield writer.writerow(vals)
 
-        filename = '%s_%s.csv' % (self.name,
-                                  time.strftime("%Y-%m-%d_%H-%M-%S"))
+        filename = self.get_export_name(export_type='csv')
 
         disposition = 'attachment;filename=%s' % (secure_filename(filename),)
 
@@ -2054,6 +2185,48 @@ class BaseModelView(BaseView, ActionsMixin):
             stream_with_context(generate()),
             headers={'Content-Disposition': disposition},
             mimetype='text/csv'
+        )
+
+    def _export_tablib(self, export_type, return_url):
+        """
+            Exports a variety of formats using the tablib library.
+        """
+        if tablib is None:
+            flash(gettext('Tablib dependency not installed.'), 'error')
+            return redirect(return_url)
+
+        filename = self.get_export_name(export_type)
+
+        disposition = 'attachment;filename=%s' % (secure_filename(filename),)
+
+        mimetype, encoding = mimetypes.guess_type(filename)
+        if not mimetype:
+            mimetype = 'application/octet-stream'
+        if encoding:
+            mimetype = '%s; charset=%s' % (mimetype, encoding)
+
+        ds = tablib.Dataset(headers=[c[1] for c in self._export_columns])
+
+        count, data = self._export_data()
+
+        for row in data:
+            vals = [self.get_export_value(row, c[0]) for c in self._export_columns]
+            ds.append(vals)
+
+        try:
+            try:
+                response_data = ds.export(format=export_type)
+            except AttributeError:
+                response_data = getattr(ds, export_type)
+        except (AttributeError, tablib.UnsupportedFormat):
+            flash(gettext('Export type "%(type)s not supported.',
+                          type=export_type), 'error')
+            return redirect(return_url)
+
+        return Response(
+            response_data,
+            headers={'Content-Disposition': disposition},
+            mimetype=mimetype,
         )
 
     @expose('/ajax/lookup/')
@@ -2079,24 +2252,23 @@ class BaseModelView(BaseView, ActionsMixin):
         if not self.column_editable_list:
             abort(404)
 
-        record = None
         form = self.list_form()
 
         # prevent validation issues due to submitting a single field
-        # delete all fields except the field being submitted
-        for field in form:
-            # only the submitted field has a positive last_index
-            if getattr(field, 'last_index', 0):
-                record = self.get_one(str(field.last_index))
-            elif field.name == 'csrf_token':
+        # delete all fields except the submitted fields and csrf token
+        for field in list(form):
+            if (field.name in request.form) or (field.name == 'csrf_token'):
                 pass
             else:
                 form.__delitem__(field.name)
 
-        if record is None:
-            return gettext('Failed to update record. %(error)s', error=''), 500
-
         if self.validate_form(form):
+            pk = form.list_form_pk.data
+            record = self.get_one(pk)
+
+            if record is None:
+                return gettext('Record does not exist.'), 500
+
             if self.update_model(form, record):
                 # Success
                 return gettext('Record was successfully saved.')
@@ -2110,6 +2282,8 @@ class BaseModelView(BaseView, ActionsMixin):
                 for error in field.errors:
                     # return validation error to x-editable
                     if isinstance(error, list):
-                        return ", ".join(error), 500
+                        return gettext('Failed to update record. %(error)s',
+                                       error=", ".join(error)), 500
                     else:
-                        return error, 500
+                        return gettext('Failed to update record. %(error)s',
+                                       error=error), 500

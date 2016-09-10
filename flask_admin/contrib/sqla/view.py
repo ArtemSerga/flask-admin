@@ -5,24 +5,23 @@ import inspect
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm import joinedload, aliased
-from sqlalchemy.sql.expression import desc, ColumnElement
+from sqlalchemy.sql.expression import desc
 from sqlalchemy import Boolean, Table, func, or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql.expression import cast
+from sqlalchemy import Unicode
 
-from flask import flash, request
+from flask import current_app, flash
 
 from flask_admin._compat import string_types, text_type
 from flask_admin.babel import gettext, ngettext, lazy_gettext
 from flask_admin.model import BaseModelView
-from flask_admin.model.form import wrap_fields_in_fieldlist
-from flask_admin.model.fields import ListEditableFieldList
-
+from flask_admin.model.form import create_editable_list_form
 from flask_admin.actions import action
 from flask_admin._backwards import ObsoleteAttr
 
 from flask_admin.contrib.sqla import form, filters as sqla_filters, tools
 from .typefmt import DEFAULT_FORMATTERS
-from .tools import get_query_for_ids
 from .ajax import create_ajax_loader
 
 # Set up logger
@@ -116,7 +115,10 @@ class ModelView(BaseModelView):
     """
         Collection of the column filters.
 
-        Can contain either field names or instances of :class:`flask_admin.contrib.sqla.filters.BaseFilter` classes.
+        Can contain either field names or instances of
+        :class:`flask_admin.contrib.sqla.filters.BaseSQLAFilter` classes.
+
+        Filters will be grouped by name when displayed in the drop-down.
 
         For example::
 
@@ -125,8 +127,31 @@ class ModelView(BaseModelView):
 
         or::
 
+            from flask_admin.contrib.sqla.filters import BooleanEqualFilter
+
             class MyModelView(BaseModelView):
-                column_filters = (BooleanEqualFilter(User.name, 'Name'))
+                column_filters = (BooleanEqualFilter(column=User.name, name='Name'),)
+
+        or::
+
+            from flask_admin.contrib.sqla.filters import BaseSQLAFilter
+
+            class FilterLastNameBrown(BaseSQLAFilter):
+                def apply(self, query, value, alias=None):
+                    if value == '1':
+                        return query.filter(self.column == "Brown")
+                    else:
+                        return query.filter(self.column != "Brown")
+
+                def operation(self):
+                    return 'is Brown'
+
+            class MyModelView(BaseModelView):
+                column_filters = [
+                    FilterLastNameBrown(
+                        User.last_name, 'Last Name', options=(('1', 'Yes'), ('0', 'No'))
+                    )
+                ]
     """
 
     model_form_converter = form.AdminModelConverter
@@ -193,6 +218,8 @@ class ModelView(BaseModelView):
                 inline_models = [(Post, dict(form_columns=['title']))]
 
         3. Django-like ``InlineFormAdmin`` class instance::
+
+            from flask_admin.model.form import InlineFormAdmin
 
             class MyInlineModelForm(InlineFormAdmin):
                 form_columns = ('title', 'date')
@@ -312,64 +339,6 @@ class ModelView(BaseModelView):
             model = self.model
 
         return model._sa_class_manager.mapper.iterate_properties
-
-    def _get_columns_for_field(self, field):
-        if (not field or
-            not hasattr(field, 'property') or
-            not hasattr(field.property, 'columns') or
-            not field.property.columns):
-                raise Exception('Invalid field %s: does not contains any columns.' % field)
-
-        return field.property.columns
-
-    def _get_field_with_path(self, name):
-        """
-            Resolve property by name and figure out its join path.
-
-            Join path might contain both properties and tables.
-        """
-        path = []
-
-        model = self.model
-
-        # For strings, resolve path
-        if isinstance(name, string_types):
-            for attribute in name.split('.'):
-                value = getattr(model, attribute)
-
-                if (hasattr(value, 'property') and
-                        hasattr(value.property, 'direction')):
-                    model = value.property.mapper.class_
-
-                    table = model.__table__
-
-                    if self._need_join(table):
-                        path.append(value)
-
-                attr = value
-        else:
-            attr = name
-
-            # Determine joins if table.column (relation object) is provided
-            if isinstance(attr, InstrumentedAttribute):
-                columns = self._get_columns_for_field(attr)
-
-                if len(columns) > 1:
-                    raise Exception('Can only handle one column for %s' % name)
-
-                column = columns[0]
-
-                # TODO: Use SQLAlchemy "path-finder" to find exact join path to the target property
-                if self._need_join(column.table):
-                    path.append(column.table)
-
-        return attr, path
-
-    def _need_join(self, table):
-        """
-            Check if join to a table is necessary.
-        """
-        return table not in self.model._sa_class_manager.mapper.tables
 
     def _apply_path_joins(self, query, joins, path, inner_join=True):
         """
@@ -503,21 +472,73 @@ class ModelView(BaseModelView):
 
             for c in self.column_sortable_list:
                 if isinstance(c, tuple):
-                    column, path = self._get_field_with_path(c[1])
+                    column, path = tools.get_field_with_path(self.model, c[1])
                     column_name = c[0]
-                elif isinstance(c, InstrumentedAttribute):
-                    column, path = self._get_field_with_path(c)
-                    column_name = str(c)
                 else:
-                    column, path = self._get_field_with_path(c)
-                    column_name = c
+                    column, path = tools.get_field_with_path(self.model, c)
+                    column_name = text_type(c)
 
+                if path and hasattr(path[0], 'property'):
+                    self._sortable_joins[column_name] = path
+                elif path:
+                    raise Exception("For sorting columns in a related table, "
+                                    "column_sortable_list requires a string "
+                                    "like '<relation name>.<column name>'. "
+                                    "Failed on: {0}".format(c))
+                else:
+                    # column is in same table, use only model attribute name
+                    if getattr(column, 'key', None) is not None:
+                        column_name = column.key
+                    else:
+                        column_name = text_type(c)
+
+                # column_name must match column_name used in `get_list_columns`
                 result[column_name] = column
 
-                if path:
-                    self._sortable_joins[column_name] = path
-
             return result
+
+    def get_column_names(self, only_columns, excluded_columns):
+        """
+            Returns a list of tuples with the model field name and formatted
+            field name.
+
+            Overridden to handle special columns like InstrumentedAttribute.
+
+            :param only_columns:
+                List of columns to include in the results. If not set,
+                `scaffold_list_columns` will generate the list from the model.
+            :param excluded_columns:
+                List of columns to exclude from the results.
+        """
+        if excluded_columns:
+            only_columns = [c for c in only_columns if c not in excluded_columns]
+
+        formatted_columns = []
+        for c in only_columns:
+            try:
+                column, path = tools.get_field_with_path(self.model, c)
+
+                if path:
+                    # column is a relation (InstrumentedAttribute), use full path
+                    column_name = text_type(c)
+                else:
+                    # column is in same table, use only model attribute name
+                    if getattr(column, 'key', None) is not None:
+                        column_name = column.key
+                    else:
+                        column_name = text_type(c)
+            except AttributeError:
+                # TODO: See ticket #1299 - allow virtual columns. Probably figure out
+                # better way to handle it. For now just assume if column was not found - it
+                # is virtual and there's column formatter for it.
+                column_name = text_type(c)
+
+            visible_name = self.get_column_name(column_name)
+
+            # column_name must match column_name in `get_sortable_columns`
+            formatted_columns.append((column_name, visible_name))
+
+        return formatted_columns
 
     def init_search(self):
         """
@@ -531,12 +552,12 @@ class ModelView(BaseModelView):
             self._search_fields = []
 
             for p in self.column_searchable_list:
-                attr, joins = self._get_field_with_path(p)
+                attr, joins = tools.get_field_with_path(self.model, p)
 
                 if not attr:
                     raise Exception('Failed to find field for search field: %s' % p)
 
-                for column in self._get_columns_for_field(attr):
+                for column in tools.get_columns_for_field(attr):
                     self._search_fields.append((column, joins))
 
         return bool(self.column_searchable_list)
@@ -546,16 +567,13 @@ class ModelView(BaseModelView):
             Return list of enabled filters
         """
 
-        attr, joins = self._get_field_with_path(name)
+        attr, joins = tools.get_field_with_path(self.model, name)
 
         if attr is None:
             raise Exception('Failed to find field for filter: %s' % name)
 
-        # Figure out filters for related column, unless it's a hybrid_property
-        if isinstance(attr, ColumnElement):
-            warnings.warn(('Unable to scaffold the filter for %s, scaffolding '
-                           'for hybrid_property is not supported yet.') % name)
-        elif hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
+        # Figure out filters for related column
+        if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
             filters = []
 
             for p in self._get_model_iterator(attr.property.mapper.class_):
@@ -579,21 +597,27 @@ class ModelView(BaseModelView):
 
                         if joins:
                             self._filter_joins[column] = joins
-                        elif self._need_join(table):
+                        elif tools.need_join(self.model, table):
                             self._filter_joins[column] = [table]
 
                         filters.extend(flt)
 
             return filters
         else:
-            columns = self._get_columns_for_field(attr)
+            is_hybrid_property = tools.is_hybrid_property(self.model, name)
+            if is_hybrid_property:
+                column = attr
+            else:
+                columns = tools.get_columns_for_field(attr)
 
-            if len(columns) > 1:
-                raise Exception('Can not filter more than on one column for %s' % name)
+                if len(columns) > 1:
+                    raise Exception('Can not filter more than on one column for %s' % name)
 
-            column = columns[0]
+                column = columns[0]
 
-            if self._need_join(column.table) and name not in self.column_labels:
+            # Join not needed for hybrid properties
+            if (not is_hybrid_property and tools.need_join(self.model, column.table) and
+                    name not in self.column_labels):
                 visible_name = '%s / %s' % (
                     self.get_column_name(column.table.name),
                     self.get_column_name(column.name)
@@ -615,7 +639,7 @@ class ModelView(BaseModelView):
 
             if joins:
                 self._filter_joins[column] = joins
-            elif self._need_join(column.table):
+            elif not is_hybrid_property and tools.need_join(self.model, column.table):
                 self._filter_joins[column] = [column.table]
 
             return flt
@@ -626,7 +650,7 @@ class ModelView(BaseModelView):
 
             # hybrid_property joins are not supported yet
             if (isinstance(column, InstrumentedAttribute) and
-                    self._need_join(column.table)):
+                    tools.need_join(self.model, column.table)):
                 self._filter_joins[column] = [column.table]
 
         return filter
@@ -648,17 +672,16 @@ class ModelView(BaseModelView):
 
         return form_class
 
-    def scaffold_list_form(self, custom_fieldlist=ListEditableFieldList,
-                           validators=None):
+    def scaffold_list_form(self, widget=None, validators=None):
         """
             Create form for the `index_view` using only the columns from
             `self.column_editable_list`.
 
+            :param widget:
+                WTForms widget class. Defaults to `XEditableWidget`.
             :param validators:
                 `form_args` dict with only validators
                 {'name': {'validators': [required()]}}
-            :param custom_fieldlist:
-                A WTForm FieldList class. By default, `ListEditableFieldList`.
         """
         converter = self.model_form_converter(self.session, self)
         form_class = form.get_form(self.model, converter,
@@ -666,21 +689,8 @@ class ModelView(BaseModelView):
                                    only=self.column_editable_list,
                                    field_args=validators)
 
-        return wrap_fields_in_fieldlist(self.form_base_class,
-                                        form_class,
-                                        custom_fieldlist)
-
-    def scaffold_multiple_update_form(self):
-        """
-            Create form from the model.
-        """
-        # converter = self.model_form_converter(self.session, self, chosen_enabled=False)
-        converter = self.model_form_converter(self.session, self)
-        form_class = form.get_form(self.model, converter,
-                                   only=self.form_multiple_update_columns,
-                                   field_args=self.form_args)
-        return form_class
-
+        return create_editable_list_form(self.form_base_class, form_class,
+                                         widget)
 
     def scaffold_inline_form_models(self, form_class):
         """
@@ -779,9 +789,15 @@ class ModelView(BaseModelView):
             column = sort_field if alias is None else getattr(alias, sort_field.key)
 
             if sort_desc:
-                query = query.order_by(desc(column))
+                if isinstance(column, tuple):
+                    query = query.order_by(*map(desc, column))
+                else:
+                    query = query.order_by(desc(column))
             else:
-                query = query.order_by(column)
+                if isinstance(column, tuple):
+                    query = query.order_by(*column)
+                else:
+                    query = query.order_by(column)
 
         return query, joins
 
@@ -791,7 +807,7 @@ class ModelView(BaseModelView):
         if order is not None:
             field, direction = order
 
-            attr, joins = self._get_field_with_path(field)
+            attr, joins = tools.get_field_with_path(self.model, field)
 
             return attr, joins, direction
 
@@ -841,11 +857,11 @@ class ModelView(BaseModelView):
                                                                                    inner_join=False)
 
                 column = field if alias is None else getattr(alias, field.key)
-                filter_stmt.append(column.ilike(stmt))
+                filter_stmt.append(cast(column, Unicode).ilike(stmt))
 
                 if count_filter_stmt is not None:
                     column = field if count_alias is None else getattr(count_alias, field.key)
-                    count_filter_stmt.append(column.ilike(stmt))
+                    count_filter_stmt.append(cast(column, Unicode).ilike(stmt))
 
             query = query.filter(or_(*filter_stmt))
 
@@ -882,7 +898,7 @@ class ModelView(BaseModelView):
             except TypeError:
                 spec = inspect.getargspec(flt.apply)
 
-                if len(spec.args) == 2:
+                if len(spec.args) == 3:
                     warnings.warn('Please update your custom filter %s to include additional `alias` parameter.' % repr(flt))
                 else:
                     raise
@@ -993,7 +1009,10 @@ class ModelView(BaseModelView):
     # Error handler
     def handle_view_exception(self, exc):
         if isinstance(exc, IntegrityError):
-            flash(gettext('Integrity error. %(message)s', message=text_type(exc)), 'error')
+            if current_app.config.get('ADMIN_RAISE_ON_VIEW_EXCEPTION'):
+                raise
+            else:
+                flash(gettext('Integrity error. %(message)s', message=text_type(exc)), 'error')
             return True
 
         return super(ModelView, self).handle_view_exception(exc)
@@ -1089,7 +1108,7 @@ class ModelView(BaseModelView):
             lazy_gettext('Are you sure you want to delete selected records?'))
     def action_delete(self, ids):
         try:
-            query = get_query_for_ids(self.get_query(), self.model, ids)
+            query = tools.get_query_for_ids(self.get_query(), self.model, ids)
 
             if self.fast_mass_delete:
                 count = query.delete(synchronize_session=False)
@@ -1105,42 +1124,9 @@ class ModelView(BaseModelView):
             flash(ngettext('Record was successfully deleted.',
                            '%(count)s records were successfully deleted.',
                            count,
-                           count=count))
+                           count=count), 'success')
         except Exception as ex:
             if not self.handle_view_exception(ex):
                 raise
 
             flash(gettext('Failed to delete records. %(error)s', error=str(ex)), 'error')
-    #
-    # @action('multiple_update', lazy_gettext(u'Multiple Update'))
-    # def action_multiple_update(self, ids):
-    #     try:
-    #         if ids:
-    #             model_pk = getattr(self.model, self._primary_key)
-    #             data = {}
-    #             q = self.get_query().filter(model_pk.in_(ids))
-    #             for column, value in request.form.items():
-    #                 if column in self.form_multiple_update_columns:
-    #                     attr = getattr(self.model, column)
-    #                     # Format column
-    #                     if hasattr(attr, 'property') and hasattr(attr.property, 'direction'):
-    #                         column += '_id'
-    #                     # Format value
-    #                     model_column = self.model.__table__.columns[column]
-    #                     if (value == '__None' or (
-    #                         not isinstance(model_column, String)
-    #                         and value == ''
-    #                         and model_column.nullable
-    #                     )):
-    #                         value = None
-    #                     data[column] = value
-    #             if data:
-    #                 count = q.update(data, synchronize_session=False)
-    #                 self.session.commit()
-    #                 flash(ngettext(u'Model was successfully updated.',
-    #                                '%(count)s models were successfully updated.',
-    #                                count,
-    #                                count=count))
-    #     except Exception, exc:
-    #         flash(gettext(u'Failed to delete models. %(error)s', error=exc.message.decode('utf8')), 'error')
-    #

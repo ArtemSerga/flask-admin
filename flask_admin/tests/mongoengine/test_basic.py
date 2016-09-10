@@ -6,7 +6,7 @@ from flask_admin._compat import PY2, as_unicode
 if not PY2:
     raise SkipTest('MongoEngine is not Python 3 compatible')
 
-from wtforms import fields
+from wtforms import fields, validators
 
 from flask_admin import form
 from flask_admin.contrib.mongoengine import ModelView
@@ -148,8 +148,7 @@ def test_column_editable_list():
     Model1, Model2 = create_models(db)
 
     view = CustomModelView(Model1,
-                           column_editable_list=[
-                               'test1', 'datetime_field'])
+                           column_editable_list=['test1', 'datetime_field'])
     admin.add_view(view)
 
     fill_db(Model1, Model2)
@@ -164,7 +163,8 @@ def test_column_editable_list():
     # Form - Test basic in-line edit functionality
     obj1 = Model1.objects.get(test1 = 'test1_val_3')
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test1-' + str(obj1.id): 'change-success-1',
+        'list_form_pk': str(obj1.id),
+        'test1': 'change-success-1',
     })
     data = rv.data.decode('utf-8')
     ok_('Record was successfully saved.' == data)
@@ -177,33 +177,35 @@ def test_column_editable_list():
     # Test validation error
     obj2 = Model1.objects.get(test1 = 'datetime_obj1')
     rv = client.post('/admin/model1/ajax/update/', data={
-        'datetime_field-' + str(obj2.id): 'problematic-input',
+        'list_form_pk': str(obj2.id),
+        'datetime_field': 'problematic-input',
     })
     eq_(rv.status_code, 500)
 
     # Test invalid primary key
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test1-1000': 'problematic-input',
+        'list_form_pk': '1000',
+        'test1': 'problematic-input',
     })
     data = rv.data.decode('utf-8')
     eq_(rv.status_code, 500)
 
     # Test editing column not in column_editable_list
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test2-1': 'problematic-input',
+        'list_form_pk': '1',
+        'test2': 'problematic-input',
     })
     data = rv.data.decode('utf-8')
-    eq_(rv.status_code, 500)
+    ok_('problematic-input' not in data)
 
     # Test in-line editing for relations
-    view = CustomModelView(Model2,
-                           column_editable_list=[
-                               'model1'])
+    view = CustomModelView(Model2, column_editable_list=['model1'])
     admin.add_view(view)
 
     obj3 = Model2.objects.get(string_field = 'string_field_val_1')
     rv = client.post('/admin/model2/ajax/update/', data={
-        'model1-' + str(obj3.id): str(obj1.id),
+        'list_form_pk': str(obj3.id),
+        'model1': str(obj1.id),
     })
     data = rv.data.decode('utf-8')
     ok_('Record was successfully saved.' == data)
@@ -729,7 +731,6 @@ def test_extra_field_order():
 
     view = CustomModelView(
         Model1,
-        form_columns=('extra_field', 'test1'),
         form_extra_fields={
             'extra_field': fields.StringField('Extra Field')
         }
@@ -743,9 +744,10 @@ def test_extra_field_order():
 
     # Check presence and order
     data = rv.data.decode('utf-8')
+    ok_('Extra Field' in data)
     pos1 = data.find('Extra Field')
     pos2 = data.find('Test1')
-    ok_(pos2 > pos1)
+    ok_(pos2 < pos1)
 
 
 def test_custom_form_base():
@@ -906,6 +908,63 @@ def test_nested_list_subdocument():
     ok_('value' not in dir(inline_form))
 
 
+def test_nested_sortedlist_subdocument():
+    app, db, admin = setup()
+
+    class Comment(db.EmbeddedDocument):
+        name = db.StringField(max_length=20, required=True)
+        value = db.StringField(max_length=20)
+
+    class Model1(db.Document):
+        test1 = db.StringField(max_length=20)
+        subdoc = db.SortedListField(db.EmbeddedDocumentField(Comment))
+
+    # Check only
+    view1 = CustomModelView(
+        Model1,
+        form_subdocuments = {
+            'subdoc': {
+                'form_subdocuments': {
+                    None: {
+                        'form_columns': ('name',)
+                    }
+                }
+
+            }
+        }
+    )
+
+    form = view1.create_form()
+    inline_form = form.subdoc.unbound_field.args[2]
+
+    ok_('name' in dir(inline_form))
+    ok_('value' not in dir(inline_form))
+
+
+def test_sortedlist_subdocument_validation():
+    app, db, admin = setup()
+
+    class Comment(db.EmbeddedDocument):
+        name = db.StringField(max_length=20, required=True)
+        value = db.StringField(max_length=20)
+
+    class Model1(db.Document):
+        test1 = db.StringField(max_length=20)
+        subdoc = db.SortedListField(db.EmbeddedDocumentField(Comment))
+
+    view = CustomModelView(Model1)
+    admin.add_view(view)
+    client = app.test_client()
+
+    rv = client.post('/admin/model1/new/',
+                     data={'test1': 'test1large', 'subdoc-0-name': 'comment', 'subdoc-0-value': 'test'})
+    eq_(rv.status_code, 302)
+
+    rv = client.post('/admin/model1/new/',
+                     data={'test1': 'test1large', 'subdoc-0-name': '', 'subdoc-0-value': 'test'})
+    eq_(rv.status_code, 200)
+    ok_('This field is required' in rv.data)
+
 def test_list_subdocument_validation():
     app, db, admin = setup()
 
@@ -1038,6 +1097,25 @@ def test_form_flat_choices():
 
     form = view.create_form()
     eq_(form.name.choices, [('a', 'a'), ('b', 'b'), ('c', 'c')])
+
+
+def test_form_args():
+    app, db, admin = setup()
+
+    class Model(db.Document):
+        test = db.StringField(required=True)
+
+    shared_form_args = {'test': {'validators': [validators.Regexp('test')]}}
+
+    view = CustomModelView(Model, form_args=shared_form_args)
+    admin.add_view(view)
+
+    # ensure shared field_args don't create duplicate validators
+    create_form = view.create_form()
+    eq_(len(create_form.test.validators), 2)
+
+    edit_form = view.edit_form()
+    eq_(len(edit_form.test.validators), 2)
 
 
 def test_form_args_embeddeddoc():

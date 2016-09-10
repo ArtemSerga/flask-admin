@@ -10,7 +10,7 @@ from flask_admin._compat import iteritems, itervalues
 from flask_admin.model.form import InlineFormAdmin, InlineModelConverterBase
 from flask_admin.model.fields import InlineModelFormField, InlineFieldList, AjaxSelectField
 
-from .tools import get_primary_key
+from .tools import get_primary_key, get_meta_fields
 from .ajax import create_ajax_loader
 
 
@@ -61,7 +61,8 @@ class InlineModelFormList(InlineFieldList):
         for field in self.entries:
             field_id = field.get_pk()
 
-            if field_id in pk_map:
+            is_created = field_id not in pk_map
+            if not is_created:
                 model = pk_map[field_id]
 
                 if self.should_delete(field):
@@ -75,7 +76,7 @@ class InlineModelFormList(InlineFieldList):
             # Force relation
             setattr(model, self.prop, model_id)
 
-            self.inline_view.on_model_change(field, model)
+            self.inline_view._on_model_change(field, model, is_created)
 
             model.save()
 
@@ -210,7 +211,7 @@ class InlineModelConverter(InlineModelConverterBase):
 
         info = self.get_info(inline_model)
 
-        for field in info.model._meta.get_fields():
+        for field in get_meta_fields(info.model):
             field_type = type(field)
 
             if field_type == ForeignKeyField:

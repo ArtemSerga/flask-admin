@@ -1,6 +1,34 @@
 Changelog
 =========
 
+1.4.2
+-----
+
+* Small bug fix release. Fixes regression that prevented usage of "virtual" columns with a custom formatter.
+
+1.4.1
+-----
+
+* Official Python 3.5 support
+* Customizable row actions
+* Tablib support (exporting to XLS, XLSX, CSV, etc)
+* Updated external dependencies (jQuery, x-editable, etc)
+* Added settings that allows exceptions to be raised on view errors
+* Bug fixes
+
+1.4.0
+-----
+
+* Updated and reworked documentation
+* FileAdmin went through minor refactoring and now supports remote file systems. Comes with the new, optional, AWS S3 file management interface
+* Configurable CSV export for model views
+* Added overridable URL generation logic. Allows using custom URLs with parameters for administrative views
+* Added column_display_actions to ModelView control visibility of the action column without overriding the template
+* Added support for the latest MongoEngine
+* New SecureForm base class for easier CSRF validation
+* Lots of translation-related fixes and updated translations
+* Bug fixes
+
 1.3.0
 -----
 
@@ -13,41 +41,3 @@ Changelog
 * Updated documentation and examples
 * Updated translations
 * Bug fixes
-
-1.2.0
------
-
-* Codebase was migrated to Flask-Admin GitHub organization
-* Automatically inject Flask-WTF CSRF token to internal Flask-Admin forms
-* MapBox v4 support for GeoAlchemy
-* Updated translations with help of CrowdIn
-* Show warning if field was ignored in form rendering rules
-* Simple AppEngine backend
-* Optional support for Font Awesome in templates and menus
-* Bug fixes
-
-1.1.0
------
-
-Mostly bug fix release. Highlights:
-
-* Inline model editing on the list page
-* FileAdmin refactoring and fixes
-* FileUploadField and ImageUploadField will work with Required() validator
-* Bug fixes
-
-
-1.0.9
------
-
-Highlights:
-
-* Bootstrap 3 support
-* WTForms 2.x support
-* Updated DateTime picker
-* SQLAlchemy backend: support for complex sortables, ability to search for related models, model inheritance support
-* Customizable URL generation logic for all views
-* New generic filter types: in list, empty, date range
-* Added the ``geoa`` contrib module, for working with `geoalchemy2 <http://geoalchemy-2.readthedocs.org/>`_
-* Portugese translation
-* Lots of bug fixes

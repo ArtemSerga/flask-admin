@@ -8,7 +8,7 @@ if not PY2:
 
 import peewee
 
-from wtforms import fields
+from wtforms import fields, validators
 
 from flask_admin import form
 from flask_admin._compat import iteritems
@@ -39,8 +39,8 @@ def create_models(db):
     class Model1(BaseModel):
         def __init__(self, test1=None, test2=None, test3=None, test4=None,
                      date_field=None, timeonly_field=None,
-                     datetime_field=None):
-            super(Model1, self).__init__()
+                     datetime_field=None, **kwargs):
+            super(Model1, self).__init__(**kwargs)
 
             self.test1 = test1
             self.test2 = test2
@@ -65,8 +65,8 @@ def create_models(db):
 
     class Model2(BaseModel):
         def __init__(self, char_field=None, int_field=None, float_field=None,
-                     bool_field=0):
-            super(Model2, self).__init__()
+                     bool_field=0, **kwargs):
+            super(Model2, self).__init__(**kwargs)
 
             self.char_field = char_field
             self.int_field = int_field
@@ -185,9 +185,10 @@ def test_column_editable_list():
 
     Model1, Model2 = create_models(db)
 
-    view = CustomModelView(Model1,
-                           column_editable_list=[
-                               'test1', 'enum_field'])
+    # wtf-peewee doesn't automatically add length validators for max_length
+    form_args = {'test1': {'validators': [validators.Length(max=20)]}}
+    view = CustomModelView(Model1, column_editable_list=['test1'],
+                           form_args=form_args)
     admin.add_view(view)
 
     fill_db(Model1, Model2)
@@ -201,7 +202,8 @@ def test_column_editable_list():
 
     # Form - Test basic in-line edit functionality
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test1-1': 'change-success-1',
+        'list_form_pk': '1',
+        'test1': 'change-success-1',
     })
     data = rv.data.decode('utf-8')
     ok_('Record was successfully saved.' == data)
@@ -213,32 +215,35 @@ def test_column_editable_list():
 
     # Test validation error
     rv = client.post('/admin/model1/ajax/update/', data={
-        'enum_field-1': 'problematic-input',
+        'list_form_pk': '1',
+        'test1': 'longerthantwentycharacterslongerthantwentycharacterslongerthantwentycharacterslongerthantwentycharacters',
     })
+    data = rv.data.decode('utf-8')
     eq_(rv.status_code, 500)
 
     # Test invalid primary key
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test1-1000': 'problematic-input',
+        'list_form_pk': '1000',
+        'test1': 'problematic-input',
     })
     data = rv.data.decode('utf-8')
     eq_(rv.status_code, 500)
 
     # Test editing column not in column_editable_list
     rv = client.post('/admin/model1/ajax/update/', data={
-        'test2-1': 'problematic-input',
+        'list_form_pk': '1',
+        'test2': 'problematic-input',
     })
     data = rv.data.decode('utf-8')
-    eq_(rv.status_code, 500)
+    ok_('problematic-input' not in data)
 
     # Test in-line editing for relations
-    view = CustomModelView(Model2,
-                           column_editable_list=[
-                               'model1'])
+    view = CustomModelView(Model2, column_editable_list=['model1'])
     admin.add_view(view)
 
     rv = client.post('/admin/model2/ajax/update/', data={
-        'model1-1': '3',
+        'list_form_pk': '1',
+        'model1': '3',
     })
     data = rv.data.decode('utf-8')
     ok_('Record was successfully saved.' == data)
@@ -908,6 +913,32 @@ def test_custom_form_base():
 
     create_form = view.create_form()
     ok_(isinstance(create_form, TestForm))
+
+
+def test_form_args():
+    app, db, admin = setup()
+
+    class BaseModel(peewee.Model):
+        class Meta:
+            database = db
+
+    class Model(BaseModel):
+        test = peewee.CharField(null=False)
+
+    Model.create_table()
+
+    shared_form_args = {'test': {'validators': [validators.Regexp('test')]}}
+
+    view = CustomModelView(Model, form_args=shared_form_args)
+    admin.add_view(view)
+
+    # ensure shared field_args don't create duplicate validators
+    create_form = view.create_form()
+
+    eq_(len(create_form.test.validators), 2)
+
+    edit_form = view.edit_form()
+    eq_(len(edit_form.test.validators), 2)
 
 
 def test_ajax_fk():

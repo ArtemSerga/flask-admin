@@ -1,4 +1,5 @@
 import os.path as op
+import warnings
 
 from functools import wraps
 
@@ -439,7 +440,7 @@ class AdminIndexView(BaseView):
         super(AdminIndexView, self).__init__(name or babel.lazy_gettext('Home'),
                                              category,
                                              endpoint or 'admin',
-                                             url or '/admin',
+                                             '/admin' if url is None else url,
                                              'static',
                                              menu_class_name=menu_class_name,
                                              menu_icon_type=menu_icon_type,
@@ -546,9 +547,9 @@ class Admin(object):
 
             Examples::
 
-            admin.add_views(view1)
-            admin.add_views(view1, view2, view3, view4)
-            admin.add_views(*my_list)
+                admin.add_views(view1)
+                admin.add_views(view1, view2, view3, view4)
+                admin.add_views(*my_list)
 
             :param args:
                 Argument list including the views to add.
@@ -564,7 +565,7 @@ class Admin(object):
                 Link to add.
         """
         if link.category:
-            self._add_menu_item(link, link.category)
+            self.add_menu_item(link, link.category)
         else:
             self._menu_links.append(link)
 
@@ -574,9 +575,9 @@ class Admin(object):
 
             Examples::
 
-            admin.add_links(link1)
-            admin.add_links(link1, link2, link3, link4)
-            admin.add_links(*my_list)
+                admin.add_links(link1)
+                admin.add_links(link1, link2, link3, link4)
+                admin.add_links(*my_list)
 
             :param args:
                 Argument list including the links to add.
@@ -584,7 +585,15 @@ class Admin(object):
         for link in args:
             self.add_link(link)
 
-    def _add_menu_item(self, menu_item, target_category):
+    def add_menu_item(self, menu_item, target_category=None):
+        """
+            Add menu item to menu tree hierarchy.
+
+            :param menu_item:
+                MenuItem class instance
+            :param target_category:
+                Target category name
+        """
         if target_category:
             cat_text = as_unicode(target_category)
 
@@ -602,6 +611,10 @@ class Admin(object):
         else:
             self._menu.append(menu_item)
 
+    def _add_menu_item(self, menu_item, target_category):
+        warnings.warn('Admin._add_menu_item is obsolete - use Admin.add_menu_item instead.')
+        return self.add_menu_item(menu_item, target_category)
+
     def _add_view_to_menu(self, view):
         """
             Add a view to the menu tree
@@ -609,7 +622,7 @@ class Admin(object):
             :param view:
                 View to add
         """
-        self._add_menu_item(MenuView(view.name, view), view.category)
+        self.add_menu_item(MenuView(view.name, view), view.category)
 
     def get_category_menu_item(self, name):
         return self._menu_categories.get(name)

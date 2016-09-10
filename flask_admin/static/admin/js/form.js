@@ -158,15 +158,17 @@
           }
         } else {
           // look up user's location by IP address
-          $.getJSON("http://ip-api.com/json/?callback=?", function(data) {
+          $.getJSON("//ip-api.com/json/?callback=?", function(data) {
             map.setView([data["lat"], data["lon"]], 12);
+          }).fail(function() {
+              map.setView([0, 0], 1)
           });
         }
 
         // set up tiles
         var mapboxVersion = window.MAPBOX_ACCESS_TOKEN ? 4 : 3;
-        L.tileLayer('http://{s}.tiles.mapbox.com/v'+mapboxVersion+'/'+MAPBOX_MAP_ID+'/{z}/{x}/{y}.png?access_token='+window.MAPBOX_ACCESS_TOKEN, {
-          attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+        L.tileLayer('//{s}.tiles.mapbox.com/v'+mapboxVersion+'/'+MAPBOX_MAP_ID+'/{z}/{x}/{y}.png?access_token='+window.MAPBOX_ACCESS_TOKEN, {
+          attribution: 'Map data &copy; <a href="//openstreetmap.org">OpenStreetMap</a> contributors, <a href="//creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="//mapbox.com">Mapbox</a>',
           maxZoom: 18
         }).addTo(map);
 
@@ -281,11 +283,12 @@
                 return true;
         }
 
-        // make x-editable's POST act like a normal FieldList field
+        // make x-editable's POST compatible with WTForms
         // for x-editable, x-editable-combodate, and x-editable-boolean cases
         var overrideXeditableParams = function(params) {
             var newParams = {};
-            newParams[params.name + '-' + params.pk] = params.value;
+            newParams['list_form_pk'] = params.pk;
+            newParams[params.name] = params.value;
             if ($(this).data('csrf')) {
                 newParams['csrf_token'] = $(this).data('csrf');
             }
@@ -458,6 +461,30 @@
                     }
                 });
                 return true;
+            case 'x-editable-select2-multiple':
+                $el.editable({
+                    params: overrideXeditableParams,
+                    ajaxOptions: {
+                        // prevents keys with the same value from getting converted into arrays
+                        traditional: true
+                    },
+                    select2: {
+                        multiple: true
+                    },
+                    display: function(value) {
+                        // override to display text instead of ids on list view
+                        var html = [];
+                        var data = $.fn.editableutils.itemsByValue(value, $el.data('source'), 'id');
+
+                        if(data.length) {
+                            $.each(data, function(i, v) { html.push($.fn.editableutils.escape(v.text)); });
+                            $(this).html(html.join(', '));
+                        } else {
+                            $(this).empty();
+                        }
+                    }
+                });
+                return true;
             case 'x-editable-boolean':
                 $el.editable({
                     params: overrideXeditableParams,
@@ -491,7 +518,10 @@
         var $parentForm = $el.parent().closest('.inline-field');
 
         if ($parentForm.hasClass('fresh')) {
-          id = $parentForm.attr('id') + '-' + elID;
+          id = $parentForm.attr('id');
+          if (elID) {
+            id += '-' + elID;
+          }
         }
 
         var $fieldList = $el.find('> .inline-field-list');

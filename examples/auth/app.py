@@ -56,7 +56,7 @@ security = Security(app, user_datastore)
 class MyModelView(sqla.ModelView):
 
     def is_accessible(self):
-        if not current_user.is_active() or not current_user.is_authenticated():
+        if not current_user.is_active or not current_user.is_authenticated:
             return False
 
         if current_user.has_role('superuser'):
@@ -69,7 +69,7 @@ class MyModelView(sqla.ModelView):
         Override builtin _handle_view in order to redirect users when a view is not accessible.
         """
         if not self.is_accessible():
-            if current_user.is_authenticated():
+            if current_user.is_authenticated:
                 # permission denied
                 abort(403)
             else:
@@ -101,6 +101,7 @@ def security_context_processor():
         admin_base_template=admin.base_template,
         admin_view=admin.index_view,
         h=admin_helpers,
+        get_url=url_for
     )
 
 

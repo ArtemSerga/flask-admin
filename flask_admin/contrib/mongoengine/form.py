@@ -61,7 +61,7 @@ class CustomModelConverter(orm.ModelConverter):
 
         kwargs = {
             'label': getattr(field, 'verbose_name', field.name),
-            'description': field.help_text or '',
+            'description': getattr(field, 'help_text', ''),
             'validators': [],
             'filters': [],
             'default': field.default
@@ -69,6 +69,10 @@ class CustomModelConverter(orm.ModelConverter):
 
         if field_args:
             kwargs.update(field_args)
+
+        if kwargs['validators']:
+            # Create a copy of the list since we will be modifying it.
+            kwargs['validators'] = list(kwargs['validators'])
 
         if field.required:
             kwargs['validators'].append(validators.InputRequired())
