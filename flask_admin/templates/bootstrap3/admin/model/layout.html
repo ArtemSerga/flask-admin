@@ -5,7 +5,7 @@
     <ul class="dropdown-menu field-filters">
         {% for k in filter_groups %}
         <li>
-            <a href="javascript:void(0)" class="filter" onclick="return false;">{{ k }}</a>
+            <a href="javascript:void(0)" class="filter" onclick="return false;">{{ k | safe }}</a>
         </li>
         {% endfor %}
     </ul>
