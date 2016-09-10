@@ -315,7 +315,7 @@ class FilterManyToOne(BaseSQLAFilter):
 
         self.model = model
         self.display_field = display_field
-        if isinstance(column, basestring):
+        if isinstance(column, str):
             parent_attrs = column.split('.')
             self.column = getattr(self.model, parent_attrs[0]).property
             if '.' in column:

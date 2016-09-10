@@ -89,7 +89,7 @@ class FilterGroup(object):
     def non_lazy(self):
         filters = []
         for item in self.filters:
-            copy = dict(item)
+            copy = dict(item if isinstance(item, dict) else item())
             copy['operation'] = as_unicode(copy['operation'])
             options = copy['options']
             if options:
@@ -792,9 +792,9 @@ class BaseModelView(BaseView, ActionsMixin):
         result = {
             'index': i,
             'arg': self.get_filter_arg(i, flt),
-            'operation': unicode(flt.operation()),
-            'type': flt.data_type,
+            'operation': flt.operation(),
             'options': flt.get_options(self) or None,
+            'type': flt.data_type,
         }
         return result
 
@@ -820,25 +820,32 @@ class BaseModelView(BaseView, ActionsMixin):
         self._filters = self.get_filters()
 
         if self._filters:
-            self._filter_names = OrderedDict()
             self._filter_groups = OrderedDict()
             self._filter_args = {}
 
             for i, flt in enumerate(self._filters):
 
-                if flt.name not in self._filter_groups:
-                    self._filter_groups[flt.name] = []
+                key = as_unicode(flt.name)
+                if key not in self._filter_groups:
+                    self._filter_groups[key] = FilterGroup(flt.name)
 
-                data = (
+                self._filter_groups[key].append(
                     self._serialize_filter_data(i, flt)
                     if flt.cache_enabled
                     else lazy(self._serialize_filter_data)(i, flt)
+                    # {
+                    #     'index': i,
+                    #     'arg': self.get_filter_arg(i, flt),
+                    #     'operation': flt.operation(),
+                    #     'options': flt.get_options(self) or None,
+                    #     'type': flt.data_type
+                    # }
                 )
-                self._filter_groups[flt.name].append(data)
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
             self._filter_groups = None
             self._filter_args = None
+
 
     def _refresh_form_rules_cache(self):
         if self.form_create_rules:
@@ -1159,7 +1166,6 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         if self._filter_groups:
             results = OrderedDict()
-
             for group in itervalues(self._filter_groups):
                 key, items = group.non_lazy()
                 results[key] = items
