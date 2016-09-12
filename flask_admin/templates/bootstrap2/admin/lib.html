@@ -120,7 +120,7 @@
 {% endmacro %}
 
 {# ---------------------- Forms -------------------------- #}
-{% macro render_field(form, field, kwargs={}, caller=None, enable_disabling=False) %}
+{% macro render_field(form, field, kwargs={}, caller=None) %}
   {% set direct_error = h.is_field_error(field.errors) %}
   <div class="control-group{{ ' error' if direct_error else '' }}">
     <div class="control-label">
@@ -157,7 +157,7 @@
     <h3>{{ text }}</h3>
 {% endmacro %}
 
-{% macro render_form_fields(form, form_opts=None, enable_disabling=False) %}
+{% macro render_form_fields(form, form_opts=None) %}
     {% if form.hidden_tag is defined %}
         {{ form.hidden_tag() }}
     {% else %}
@@ -180,7 +180,7 @@
           {% else %}
             {% set kwargs = {} %}
           {% endif %}
-          {{ render_field(form, f, kwargs, enable_disabling=enable_disabling) }}
+          {{ render_field(form, f, kwargs) }}
         {% endfor %}
     {% endif %}
 {% endmacro %}

@@ -90,6 +90,7 @@ class FilterGroup(object):
         filters = []
         for item in self.filters:
             copy = dict(item if isinstance(item, dict) else item())
+            # copy = dict(item)
             copy['operation'] = as_unicode(copy['operation'])
             options = copy['options']
             if options:
@@ -824,28 +825,27 @@ class BaseModelView(BaseView, ActionsMixin):
             self._filter_args = {}
 
             for i, flt in enumerate(self._filters):
-
                 key = as_unicode(flt.name)
                 if key not in self._filter_groups:
                     self._filter_groups[key] = FilterGroup(flt.name)
 
+                # self._filter_groups[key].append({
+                #     'index': i,
+                #     'arg': self.get_filter_arg(i, flt),
+                #     'operation': flt.operation(),
+                #     'options': flt.get_options(self) or None,
+                #     'type': flt.data_type
+                # })
                 self._filter_groups[key].append(
                     self._serialize_filter_data(i, flt)
                     if flt.cache_enabled
                     else lazy(self._serialize_filter_data)(i, flt)
-                    # {
-                    #     'index': i,
-                    #     'arg': self.get_filter_arg(i, flt),
-                    #     'operation': flt.operation(),
-                    #     'options': flt.get_options(self) or None,
-                    #     'type': flt.data_type
-                    # }
                 )
+
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
             self._filter_groups = None
             self._filter_args = None
-
 
     def _refresh_form_rules_cache(self):
         if self.form_create_rules:
@@ -1166,6 +1166,7 @@ class BaseModelView(BaseView, ActionsMixin):
         """
         if self._filter_groups:
             results = OrderedDict()
+
             for group in itervalues(self._filter_groups):
                 key, items = group.non_lazy()
                 results[key] = items
@@ -1889,12 +1890,6 @@ class BaseModelView(BaseView, ActionsMixin):
                                                               sort_desc=view_args.sort_desc,
                                                               search=None,
                                                               filters=None))
-        # # Process Lazy filters
-        # if self._filter_groups:
-        #     for id, filters_list in self._filter_groups.items():
-        #         for i, flt in enumerate(filters_list):
-        #             if not isinstance(flt, dict):
-        #                 self._filter_groups[id][i] = flt()
 
         return self.render(
             self.list_template,

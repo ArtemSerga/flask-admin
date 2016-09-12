@@ -5,7 +5,9 @@
     <ul class="dropdown-menu field-filters">
         {% for k in filter_groups %}
         <li>
-            <a href="javascript:void(0)" class="filter" onclick="return false;">{{ k | safe }}</a>
+            <a href="javascript:void(0)" class="filter" onclick="return false;">
+              {{ k }}
+            </a>
         </li>
         {% endfor %}
     </ul>
@@ -32,17 +34,8 @@
     {% endif %}
 {% endmacro %}
 
-{% macro hidden_args() %}
-    {% for name, value in request.args.items() %}
-        {% if name not in ['page', 'search', 'sort', 'desc'] %}
-            <input type="hidden" name="{{ name }}" value="{{ value }}"/>
-        {% endif %}
-    {% endfor %}
-{% endmacro %}
-
 {% macro filter_form() %}
     <form id="filter_form" method="GET" action="{{ return_url }}">
-        {{ hidden_args() }}
         <div class="pull-right">
             <button type="submit" class="btn btn-primary" style="display: none">{{ _gettext('Apply') }}</button>
             {% if active_filters %}
@@ -57,8 +50,6 @@
 
 {% macro search_form(input_class="col-md-2") %}
 <form method="GET" action="{{ return_url }}" class="navbar-form navbar-left" role="search">
-    {{ hidden_args() }}
-
     {% if sort_column is not none %}
     <input type="hidden" name="sort" value="{{ sort_column }}">
     {% endif %}

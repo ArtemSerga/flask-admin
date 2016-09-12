@@ -354,7 +354,7 @@ class FilterManyToOne(BaseSQLAFilter):
             ]
         else:
             self.options = [
-                (str(obj.id), unicode(obj))
+                (str(obj.id), str(obj))
                 for obj in query
             ]
         return self.options

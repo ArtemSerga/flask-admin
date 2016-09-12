@@ -24,8 +24,6 @@ class AdminModelConverter(ModelConverterBase):
     """
         SQLAlchemy model to form converter
     """
-    # chosen_enabled = True
-    
     def __init__(self, session, view):
         super(AdminModelConverter, self).__init__()
 

@@ -1,15 +1,4 @@
 (function() {
-    var defaultOptions = {
-      width: 'resolve',
-      escapeMarkup: function(m) {
-        // Do not escape HTML in the select options text
-        return m;
-      },
-      matcher: function(term, text) {
-        // Search the term in the formatted text
-        return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
-      }
-    }
     var AdminForm = function() {
       // Field converters
       var fieldConverters = [];
@@ -19,7 +8,9 @@
       */
       function processAjaxWidget($el, name) {
         var multiple = $el.attr('data-multiple') == '1';
-        var options = $.extend({}, defaultOptions, {
+
+        var opts = {
+          width: 'resolve',
           minimumInputLength: 1,
           placeholder: 'data-placeholder',
           ajax: {
@@ -68,14 +59,14 @@
 
             callback(result);
           }
-        });
+        };
 
         if ($el.attr('data-allow-blank'))
-          options['allowClear'] = true;
+          opts['allowClear'] = true;
 
-        options['multiple'] = multiple;
+        opts['multiple'] = multiple;
 
-        $el.select2(options);
+        $el.select2(opts);
       }
 
       /**
@@ -297,19 +288,21 @@
 
         switch (name) {
             case 'select2':
-                var options = $.extend({}, defaultOptions);
+                var opts = {
+                    width: 'resolve'
+                };
 
                 if ($el.attr('data-allow-blank'))
-                    options['allowClear'] = true;
+                    opts['allowClear'] = true;
 
                 if ($el.attr('data-tags')) {
-                    $.extend(options, {
+                    $.extend(opts, {
                         tokenSeparators: [','],
                         tags: []
                     });
                 }
 
-                $el.select2(options);
+                $el.select2(opts);
                 return true;
             case 'select2-tags':
                 // get tags from element
