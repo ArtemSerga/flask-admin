@@ -97,7 +97,7 @@ class FilterGroup(object):
                 copy['options'] = [(k, text_type(v)) for k, v in options]
 
             filters.append(copy)
-        return as_unicode(self.label), filters
+        return str(hash(as_unicode(self.label))), filters
 
     def __iter__(self):
         return iter(self.filters)
@@ -821,21 +821,27 @@ class BaseModelView(BaseView, ActionsMixin):
         self._filters = self.get_filters()
 
         if self._filters:
+            self._filter_names = OrderedDict()
             self._filter_groups = OrderedDict()
             self._filter_args = {}
 
-            for i, flt in enumerate(self._filters):
-                key = as_unicode(flt.name)
-                if key not in self._filter_groups:
-                    self._filter_groups[key] = FilterGroup(flt.name)
+            # for i, flt in enumerate(self._filters):
+            #     key = as_unicode(flt.name)
+            #     if key not in self._filter_groups:
+            #         self._filter_groups[key] = FilterGroup(flt.name)
+            #     self._filter_groups[key].append({
+            #         'index': i,
+            #         'arg': self.get_filter_arg(i, flt),
+            #         'operation': flt.operation(),
+            #         'options': flt.get_options(self) or None,
+            #         'type': flt.data_type
+            #     })
 
-                # self._filter_groups[key].append({
-                #     'index': i,
-                #     'arg': self.get_filter_arg(i, flt),
-                #     'operation': flt.operation(),
-                #     'options': flt.get_options(self) or None,
-                #     'type': flt.data_type
-                # })
+            for i, flt in enumerate(self._filters):
+                key = str(hash(as_unicode(flt.name)))
+                if key not in self._filter_groups:
+                    self._filter_names[key] = flt.name
+                    self._filter_groups[key] = FilterGroup(flt.name)
                 self._filter_groups[key].append(
                     self._serialize_filter_data(i, flt)
                     if flt.cache_enabled
@@ -844,6 +850,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
                 self._filter_args[self.get_filter_arg(i, flt)] = (i, flt)
         else:
+            self._filter_names = None
             self._filter_groups = None
             self._filter_args = None
 
@@ -1167,8 +1174,8 @@ class BaseModelView(BaseView, ActionsMixin):
         if self._filter_groups:
             results = OrderedDict()
 
-            for group in itervalues(self._filter_groups):
-                key, items = group.non_lazy()
+            for key, group in iteritems(self._filter_groups):
+                _key, items = group.non_lazy()
                 results[key] = items
 
             return results
@@ -1660,7 +1667,10 @@ class BaseModelView(BaseView, ActionsMixin):
                     value = request.args[n]
 
                     if flt.validate(value):
-                        filters.append((pos, (idx, as_unicode(flt.name), value)))
+                        filters.append((
+                            pos,
+                            (idx, as_unicode(flt.name), value, str(hash(as_unicode(flt.name)))))
+                        )
                     else:
                         flash(gettext('Invalid Filter Value: %(value)s', value=value), 'error')
 
@@ -1698,10 +1708,10 @@ class BaseModelView(BaseView, ActionsMixin):
 
         if view_args.filters:
             for i, pair in enumerate(view_args.filters):
-                idx, flt_name, value = pair
+                idx, flt_name, value, key = pair
 
-                key = 'flt%d_%s' % (i, self.get_filter_arg(idx, self._filters[idx]))
-                kwargs[key] = value
+                _key = 'flt%d_%s' % (i, self.get_filter_arg(idx, self._filters[idx]))
+                kwargs[_key] = value
 
         return self.get_url('.index_view', **kwargs)
 
@@ -1922,6 +1932,7 @@ class BaseModelView(BaseView, ActionsMixin):
 
             # Filters
             filters=self._filters,
+            filter_names=self._filter_names,
             filter_groups=self._get_filter_groups(),
             active_filters=view_args.filters,
 

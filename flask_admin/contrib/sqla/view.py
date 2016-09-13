@@ -870,7 +870,7 @@ class ModelView(BaseModelView):
         return query, count_query, joins, count_joins
 
     def _apply_filters(self, query, count_query, joins, count_joins, filters):
-        for idx, flt_name, value in filters:
+        for idx, flt_name, value, key in filters:
             flt = self._filters[idx]
 
             alias = None

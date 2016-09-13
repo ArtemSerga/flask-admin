@@ -55,12 +55,13 @@ var AdminFilters = function(element, filtersElement, filterGroups, activeFilters
             
             $(filter.options).each(function() {
                 // for active filter inputs with options, add "selected" if there is a matching active filter
+                var label = this[1];
                 if (filterValue && (filterValue == this[0])) {
                     $field.append($('<option/>')
-                        .val(this[0]).text(this[1]).attr('selected', true));
+                        .val(this[0]).html(label).attr('selected', true));
                 } else {
                     $field.append($('<option/>')
-                        .val(this[0]).text(this[1]));
+                        .val(this[0]).html(label));
                 }
             });
         } else {
@@ -133,7 +134,17 @@ var AdminFilters = function(element, filtersElement, filterGroups, activeFilters
         );
         
         // select2 for filter-op (equal, not equal, etc)
-        $select.select2({width: 'resolve'}).on("change", function(e) {
+        $select.select2({
+            width: 'resolve',
+            escapeMarkup: function(m) {
+                // Do not escape HTML in the select options text
+                return m;
+            },
+            matcher: function(term, text) {
+                // Search the term in the formatted text
+                return $("<div/>").html(text).text().toUpperCase().indexOf(term.toUpperCase())>=0;
+            }
+        }).on("change", function(e) {
             changeOperation(subfilters, $el, filter, $select);
         });
         
@@ -149,9 +160,8 @@ var AdminFilters = function(element, filtersElement, filterGroups, activeFilters
     
     // Add Filter Button, new filter
     $('a.filter', filtersElement).click(function() {
-        var name = ($(this).text().trim !== undefined ? $(this).text().trim() : $(this).text().replace(/^\s+|\s+$/g,''));
-        
-        addFilter(name, filterGroups[name], false, null);
+        var key = $(this).data('key');
+        addFilter($(this).html(), filterGroups[key], false, null);
         
         $('button', $root).show();        
     });
@@ -160,8 +170,9 @@ var AdminFilters = function(element, filtersElement, filterGroups, activeFilters
     $.each(activeFilters, function( activeIndex, activeFilter ) {
         var idx = activeFilter[0],
             name = activeFilter[1],
-            filterValue = activeFilter[2];
-        var $activeField = addFilter(name, filterGroups[name], idx, filterValue);        
+            filterValue = activeFilter[2],
+            key = activeFilter[3];
+        var $activeField = addFilter(name, filterGroups[key], idx, filterValue);        
     });
     
     // show "Apply Filter" button when filter input is changed
@@ -170,7 +181,7 @@ var AdminFilters = function(element, filtersElement, filterGroups, activeFilters
     });
     
     $('.remove-filter', $root).click(removeFilter);
-    
+
     $('.filter-val', $root).not('.select2-container').each(function() {
         var count = getCount($(this).attr('name'));
         if (count > lastCount)
